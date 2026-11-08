@@ -1,0 +1,32 @@
+name: ges_offline_attendance
+description: Offline-first employee attendance for Android and iOS.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.9.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_secure_storage: ^10.0.0
+  cross_file: ^0.3.4+2
+  file_picker: ^10.3.7
+  cryptography: ^2.7.0
+  geolocator: ^14.0.2
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  share_plus: ^11.1.0
+  sqflite_common: ^2.5.15
+  sqflite_sqlcipher: ^3.4.1
+  timezone: ^0.10.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  test: ^1.26.3
+  sqflite_common_ffi: ^2.3.6
+
+flutter:
+  uses-material-design: true

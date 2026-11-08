@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#123c43">
+    <title>GES Smart Attendance</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="GES Smart Attendance home">
+          <span class="brand-mark">G</span>
+          <span>GES <span class="brand-light">ATTENDANCE</span></span>
+        </a>
+        <button id="sign-out" class="text-button hidden" type="button">Sign out</button>
+      </header>
+
+      <section class="content">
+        <div class="eyebrow"><span class="live-dot"></span> ONSITE CHECK-IN</div>
+        <h1 id="page-title">Welcome back.</h1>
+        <p id="page-intro" class="intro">Sign in with your employee account to continue.</p>
+
+        <form id="login-form" class="card login-card">
+          <label for="employee-id">Employee ID</label>
+          <input id="employee-id" name="employeeId" autocomplete="username" maxlength="64" required>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+          <button id="login-button" class="primary-button" type="submit">Sign in</button>
+        </form>
+
+        <section id="attendance-panel" class="card attendance-card hidden" aria-live="polite">
+          <div class="card-heading">
+            <div>
+              <p class="label">SIGNED IN AS</p>
+              <h2 id="signed-in-employee"></h2>
+            </div>
+            <span id="avatar" class="avatar"></span>
+          </div>
+
+          <div class="workflow">
+            <div class="workflow-step complete">
+              <span class="step-number">1</span>
+              <div><strong>Employee login</strong><p>Identity verified</p></div>
+              <span class="step-state">DONE</span>
+            </div>
+            <div class="workflow-step">
+              <span class="step-number">2</span>
+              <div><strong>Assigned shift</strong><p id="shift-info">Loading today’s shift…</p></div>
+            </div>
+            <div class="workflow-step">
+              <span class="step-number">3</span>
+              <div><strong>Current GPS location</strong><p id="location-coordinates">Location permission is needed.</p></div>
+            </div>
+          </div>
+
+          <div id="location-panel" class="location-panel">
+            <div class="location-symbol" aria-hidden="true">⌖</div>
+            <div class="location-copy">
+              <strong id="location-heading">Checking your location</strong>
+              <p id="location-detail">Allow location access to continue.</p>
+            </div>
+            <span id="range-badge" class="range-badge hidden"></span>
+          </div>
+          <p class="office-note">
+            <span class="pin">●</span>
+            <span>Registered offices: <strong id="office-list"></strong> · 50 m check-in radius</span>
+          </p>
+          <button id="refresh-location" class="secondary-button" type="button">Refresh location</button>
+
+          <div id="attendance-status" class="attendance-status hidden"></div>
+          <button id="attendance-action" class="primary-button" type="button" disabled>Get location</button>
+        </section>
+
+        <p id="notice" class="notice hidden" role="status"></p>
+        <p class="privacy-note">Your GPS coordinates are recorded only when you check in or check out.</p>
+      </section>
+      <footer>GES SMART ATTENDANCE <span>·</span> LOCATION-VERIFIED CHECK-IN</footer>
+    </main>
+  </body>
+</html>
