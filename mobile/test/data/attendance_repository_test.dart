@@ -68,7 +68,7 @@ void main() {
 
     final loaded = await repository.loadProfile();
 
-    expect(loaded?.plant.radiusMeters, 50);
+    expect(loaded?.plant.radiusMeters, 10);
     expect(loaded?.employee.employeeId, 'EMP-1');
     expect(loaded?.employee.shiftDays, {1, 2, 3, 4, 5});
     expect(loaded?.employee.shift.gracePeriodMinutes, 5);

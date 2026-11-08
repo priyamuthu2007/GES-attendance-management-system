@@ -116,7 +116,7 @@ class _SetupPageState extends State<SetupPage> {
   final _plantName = TextEditingController(text: 'Wastewater Treatment Plant');
   final _latitude = TextEditingController();
   final _longitude = TextEditingController();
-  final _radius = TextEditingController(text: '50');
+  final _radius = TextEditingController(text: '10');
   final _maxAccuracy = TextEditingController(text: '25');
   final _timezone = TextEditingController(text: 'Asia/Kolkata');
   final _employeeId = TextEditingController();
@@ -383,7 +383,7 @@ class _SetupPageState extends State<SetupPage> {
               },
             ),
             const Text(
-              'The default is 50 m. Attendance requires GPS uncertainty to fit '
+              'The default is 10 m. Attendance requires GPS uncertainty to fit '
               'inside the configured radius.',
             ),
             const SizedBox(height: 20),

@@ -28,7 +28,7 @@ It makes no server or internet request for attendance.
   starts or resumes. It marks an unrecorded shift absent after its configured
   check-in window and marks a check-in without checkout as incomplete after the
   six-hour checkout window. Session and event records stay on the phone.
-- The default fence radius is **50 metres**. First-run device setup allows the
+- The default fence radius is **10 metres**. First-run device setup allows the
   plant coordinates and radius to be entered; it must be completed by a
   trusted supervisor.
   A location is accepted only when the reported GPS uncertainty is within the
@@ -107,7 +107,7 @@ flutter run
 ```
 
 For Android, enable location permission in the phone settings when prompted.
-Test GPS at the real plant entrance with airplane mode enabled. The 50-metre
+Test GPS at the real plant entrance with airplane mode enabled. The 10-metre
 geofence still depends on the phone's reported GPS uncertainty; if the phone
 cannot confirm the entire uncertainty area is inside the fence, it correctly
 rejects the event. Survey the entrance and test the actual device before rollout.

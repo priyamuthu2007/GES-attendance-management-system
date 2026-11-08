@@ -115,7 +115,7 @@ class PlantConfiguration {
     required this.name,
     required this.latitude,
     required this.longitude,
-    this.radiusMeters = 50,
+    this.radiusMeters = 10,
     this.maxAccuracyMeters = 25,
     this.timezoneId = 'Asia/Kolkata',
   });
