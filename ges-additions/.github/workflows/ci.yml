@@ -1,0 +1,71 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: ges_attendance
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-root-password"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    # CI-only throwaway values. Check .env.example for the exact variable names your app reads.
+    env:
+      FLASK_SECRET_KEY: ci-only-secret-ci-only-secret-ci-only-secret-0123456789
+      SESSION_COOKIE_SECURE: "false"
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_DATABASE: ges_attendance
+      MYSQL_USER: ges_attendance_app
+      MYSQL_PASSWORD: ci-app-password
+      MYSQL_MIGRATION_USER: ges_attendance_migrator
+      MYSQL_MIGRATION_PASSWORD: ci-migrator-password
+      QR_SECRET: ci-only-qr-secret-ci-only-qr-secret-0123456789
+      KIOSK_KEY: ci-kiosk-key
+      PUBLIC_BASE_URL: https://ci.invalid
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create MySQL users (same split as production)
+        run: |
+          mysql -h 127.0.0.1 -uroot -pci-root-password <<'SQL'
+          CREATE USER 'ges_attendance_app'@'%' IDENTIFIED BY 'ci-app-password';
+          CREATE USER 'ges_attendance_migrator'@'%' IDENTIFIED BY 'ci-migrator-password';
+          GRANT SELECT, INSERT, UPDATE, DELETE ON ges_attendance.* TO 'ges_attendance_app'@'%';
+          GRANT CREATE, ALTER, INDEX, REFERENCES ON ges_attendance.* TO 'ges_attendance_migrator'@'%';
+          FLUSH PRIVILEGES;
+          SQL
+
+      - name: Create tables
+        run: python manage.py init-db
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v

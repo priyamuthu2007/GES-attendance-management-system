@@ -1,0 +1,5 @@
+# Add these to requirements.txt (skip any you already have)
+segno>=1.6,<2          # pure-Python QR code -> SVG
+PyMySQL>=1.1,<2        # used by the admin dashboard queries
+bcrypt>=4.1,<5         # already used by the app for passwords
+python-dotenv>=1.0     # only needed by scripts/create_admin.py

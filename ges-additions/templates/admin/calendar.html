@@ -1,0 +1,33 @@
+{% extends "admin/base.html" %}
+{% block title %}Holidays and leave{% endblock %}
+{% block content %}
+<h1>Holidays and leave</h1>
+
+<h2>Holidays <span class="muted" style="font-weight:400">(apply to both offices)</span></h2>
+<form method="post" action="{{ url_for('admin.holiday_add') }}" class="row-form">
+  <input type="hidden" name="csrf" value="{{ admin_csrf() }}">
+  <label>Date <input type="date" name="date" required></label>
+  <label>Name <input name="name" required maxlength="120" placeholder="Deepavali"></label>
+  <button type="submit">Add holiday</button>
+</form>
+{% if holidays %}<div class="scroll"><table><thead><tr><th>Date</th><th>Name</th><th></th></tr></thead><tbody>
+{% for h in holidays %}<tr><td>{{ h.holiday_date.strftime('%a %d %b %Y') }}</td><td>{{ h.name }}</td>
+  <td><form method="post" action="{{ url_for('admin.holiday_delete') }}" style="margin:0"><input type="hidden" name="csrf" value="{{ admin_csrf() }}">
+  <input type="hidden" name="date" value="{{ h.holiday_date.isoformat() }}"><button class="danger" type="submit">Remove</button></form></td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p>No holidays added yet.</p>{% endif %}
+
+<h2>Leave</h2>
+<form method="post" action="{{ url_for('admin.leave_add') }}" class="row-form">
+  <input type="hidden" name="csrf" value="{{ admin_csrf() }}">
+  <label>Employee <select name="emp" required>{% for p in people %}<option value="{{ p.id }}">{{ p.code }}</option>{% endfor %}</select></label>
+  <label>Date <input type="date" name="date" required></label>
+  <label>Type <select name="type"><option value="full">Full day</option><option value="half">Half day</option></select></label>
+  <label>Reason (optional) <input name="reason" maxlength="200"></label>
+  <button type="submit">Add leave</button>
+</form>
+{% if leaves %}<div class="scroll"><table><thead><tr><th>Date</th><th>Employee</th><th>Type</th><th>Reason</th><th></th></tr></thead><tbody>
+{% for l in leaves %}<tr><td>{{ l.leave_date.strftime('%a %d %b %Y') }}</td><td>{{ l.code }}</td><td>{{ 'Half day' if l.leave_type == 'half' else 'Full day' }}</td><td class="wrap">{{ l.reason or '' }}</td>
+  <td><form method="post" action="{{ url_for('admin.leave_delete') }}" style="margin:0"><input type="hidden" name="csrf" value="{{ admin_csrf() }}">
+  <input type="hidden" name="id" value="{{ l.id }}"><button class="danger" type="submit">Remove</button></form></td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p>No leave recorded in the last 30 days or later.</p>{% endif %}
+{% endblock %}

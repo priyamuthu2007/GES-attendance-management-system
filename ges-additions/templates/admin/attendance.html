@@ -1,0 +1,39 @@
+{% extends "admin/base.html" %}
+{% block title %}Attendance{% endblock %}
+{% block content %}
+<h1>Attendance</h1>
+<form class="filters" method="get">
+  <label>From <input type="date" name="from" value="{{ start }}"></label>
+  <label>To <input type="date" name="to" value="{{ end }}"></label>
+  <label>Office
+    <select name="office"><option value="">All offices</option>
+    {% for o in offices %}<option value="{{ o }}" {{ 'selected' if o == office }}>{{ o }}</option>{% endfor %}</select></label>
+  <label>Employee
+    <select name="emp"><option value="">Everyone</option>
+    {% for p in people %}<option value="{{ p.id }}" {{ 'selected' if p.id == emp_id }}>{{ p.code }}</option>{% endfor %}</select></label>
+  <button type="submit">Show</button>
+  <a class="btn quiet" href="{{ url_for('admin.attendance_csv') }}?{{ qs }}">Download CSV</a>
+</form>
+<p class="summary">{{ rows|length }} rows: {{ summary.present }} present, {{ summary.late }} late, {{ summary.half }} half days,
+  {{ summary.absent }} absent, {{ summary.missing }} missing a check-out.
+  {% if office %}<span class="muted">Absences are hidden while an office is selected, because employees are not tied to one office.</span>{% endif %}</p>
+{% if rows %}
+<div class="scroll"><table>
+  <thead><tr><th>Date</th><th>Employee</th><th>Office</th><th>Shift</th><th>In</th><th>Out</th><th>Worked</th><th>Status</th><th>Late</th><th>Left early</th><th>Overtime</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}{% set x = r.res %}
+  <tr>
+    <td>{{ r.day.strftime('%a %d %b') }}</td><td>{{ r.code }}</td><td>{{ r.office }}</td><td>{{ r.shift }}</td>
+    <td>{{ r.cin }}</td><td>{{ r.cout }}</td><td>{{ fmt(x.worked_min) }}</td>
+    <td><span class="chip {{ status_tone[x.status] }}">{{ status_label[x.status] }}</span>
+        {% for f in x.flags %}<span class="chip warn">{{ flag_label[f] }}</span>{% endfor %}</td>
+    <td>{{ x.late_min or '' }}{{ ' min' if x.late_min }}</td><td>{{ x.early_leave_min or '' }}{{ ' min' if x.early_leave_min }}</td><td>{{ fmt(x.overtime_min) }}</td>
+    <td><a href="{{ url_for('admin.correct', emp=r.emp_id, day=r.day.isoformat()) }}">Correct</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<p>No rows match. Widen the date range or clear the office filter.</p>
+{% endif %}
+{% endblock %}

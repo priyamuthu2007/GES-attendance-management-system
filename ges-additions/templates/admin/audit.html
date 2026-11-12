@@ -1,0 +1,13 @@
+{% extends "admin/base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<h1>Audit log</h1>
+<p class="muted">The latest 200 admin actions, newest first. Times are in office time.</p>
+{% if rows %}
+<div class="scroll"><table>
+  <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+  <tbody>{% for r in rows %}<tr><td>{{ r.when }}</td><td>{{ r.username or 'deleted admin' }}</td><td>{{ r.action }}</td><td class="wrap">{{ r.target }}</td>
+    <td class="wrap"><code>{{ r.details or '' }}</code></td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<p>Nothing recorded yet. Changes made in this dashboard will appear here.</p>{% endif %}
+{% endblock %}

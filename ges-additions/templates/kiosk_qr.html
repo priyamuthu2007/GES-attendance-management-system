@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check-in code · {{ office }}</title>
+<style>
+  html,body{height:100%;margin:0}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.25rem;
+       background:#fff;color:#1c2733;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center}
+  h1{margin:0;font-size:clamp(1.5rem,4vw,2.5rem);font-weight:650}
+  img{width:min(70vmin,32rem);height:auto;image-rendering:crisp-edges}
+  p{margin:0;color:#5b6876;font-size:1.1rem}
+</style>
+</head>
+<body>
+  <h1>Scan to check in or out</h1>
+  <img id="qr" alt="Check-in QR code for {{ office }}" src="{{ url_for('qr.kiosk_qr', office=office, key=key) }}">
+  <p>Open your phone camera and point it at this code. It changes every 30 seconds.</p>
+<script>
+  const img = document.getElementById("qr");
+  const base = {{ url_for('qr.kiosk_qr', office=office, key=key)|tojson }};
+  setInterval(() => { img.src = base + "&_=" + Date.now(); }, 15000);
+</script>
+</body>
+</html>

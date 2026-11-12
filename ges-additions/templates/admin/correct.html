@@ -1,0 +1,17 @@
+{% extends "admin/base.html" %}
+{% block title %}Correct attendance{% endblock %}
+{% block content %}
+<h1>Correct attendance for {{ emp.code }} on {{ day.strftime('%a %d %b %Y') }}</h1>
+<p class="muted">Times are in office time. {{ 'Saving replaces the existing record.' if rec else 'No record exists for this day. Saving creates one.' }}
+  Every change is written to the audit log with your reason.</p>
+<form method="post" class="row-form" style="flex-direction:column;align-items:flex-start;max-width:30rem">
+  <input type="hidden" name="csrf" value="{{ admin_csrf() }}">
+  <input type="hidden" name="emp" value="{{ emp_id }}"><input type="hidden" name="day" value="{{ day.isoformat() }}">
+  <label>Check-in <input type="datetime-local" name="check_in" value="{{ cin }}" required></label>
+  <label>Check-out (leave empty if still open) <input type="datetime-local" name="check_out" value="{{ cout }}"></label>
+  <label>Office
+    <select name="office" required>{% for o in offices %}<option value="{{ o }}" {{ 'selected' if rec and rec.office == o }}>{{ o }}</option>{% endfor %}</select></label>
+  <label style="width:100%">Reason <textarea name="reason" rows="2" required minlength="5" placeholder="For example: phone GPS failed, confirmed by supervisor"></textarea></label>
+  <div><button type="submit">Save correction</button> <a class="btn quiet" href="{{ back }}">Cancel</a></div>
+</form>
+{% endblock %}

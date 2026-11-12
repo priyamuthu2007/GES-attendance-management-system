@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block title %}Employees{% endblock %}
+{% block content %}
+<h1>Employees</h1>
+<details>
+  <summary>Add an employee</summary>
+  <form method="post" action="{{ url_for('admin.employee_new') }}" class="row-form" style="margin-top:.75rem">
+    <input type="hidden" name="csrf" value="{{ admin_csrf() }}">
+    <label>Employee ID <input name="code" required pattern="[A-Za-z0-9_-]{3,32}" autocomplete="off"></label>
+    <label>Starting password (10+ characters) <input type="password" name="password" required minlength="10" autocomplete="new-password"></label>
+    <label>Shift starts <input type="time" name="start" value="09:00" required></label>
+    <label>Shift ends <input type="time" name="end" value="17:00" required></label>
+    <fieldset class="days"><legend class="muted" style="font-size:.9rem">Working days</legend>
+      {% for d in day_names %}<label><input type="checkbox" name="days" value="{{ d }}" {{ 'checked' if loop.index <= 5 }}> {{ d|capitalize }}</label>{% endfor %}</fieldset>
+    <button type="submit">Add employee</button>
+  </form>
+</details>
+{% if emps %}
+<div class="scroll"><table>
+  <thead><tr><th>Employee</th><th>Shift</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for e in emps %}
+  <tr>
+    <td>{{ e.code }}</td>
+    <td class="wrap">{{ e.summary }}
+      <details style="margin:.5rem 0 0">
+        <summary>Change shift</summary>
+        <form method="post" action="{{ url_for('admin.employee_shift', emp_id=e.id) }}" class="row-form" style="margin-top:.75rem">
+          <input type="hidden" name="csrf" value="{{ admin_csrf() }}">
+          <label>Starts <input type="time" name="start" value="{{ e.start }}" required></label>
+          <label>Ends <input type="time" name="end" value="{{ e.end }}" required></label>
+          <fieldset class="days">{% for d in day_names %}<label><input type="checkbox" name="days" value="{{ d }}" {{ 'checked' if d in e.days }}> {{ d|capitalize }}</label>{% endfor %}</fieldset>
+          <button type="submit">Save shift</button>
+        </form>
+      </details></td>
+    <td>{% if e.active %}<span class="chip ok">Active</span>{% else %}<span class="chip neutral">Deactivated</span>{% endif %}</td>
+    <td><form method="post" action="{{ url_for('admin.employee_active', emp_id=e.id) }}" style="margin:0">
+      <input type="hidden" name="csrf" value="{{ admin_csrf() }}">
+      {% if e.active %}<input type="hidden" name="active" value="0"><button class="danger" type="submit">Deactivate</button>
+      {% else %}<input type="hidden" name="active" value="1"><button class="quiet" type="submit">Reactivate</button>{% endif %}
+    </form></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}<p>No employees yet. Use “Add an employee” above.</p>{% endif %}
+{% endblock %}
