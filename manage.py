@@ -43,6 +43,8 @@ def build_parser():
     parser = argparse.ArgumentParser(description="GES Smart Attendance administrator tools.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init-db", help="Create the MySQL tables.")
+    manager = commands.add_parser("create-manager", help="Create a manager account.")
+    manager.add_argument("manager_id")
     employee = commands.add_parser("create-employee", help="Create an employee and assign shift days.")
     employee.add_argument("employee_id")
     employee.add_argument("--days", type=parse_days, default=parse_days("mon,tue,wed,thu,fri"))
@@ -92,6 +94,33 @@ def create_employee(employee_id, days, shift_start, shift_end):
     print(f"Employee {employee_id} created with shifts {shift_start}-{shift_end}.")
 
 
+def create_manager(manager_id):
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", manager_id):
+        raise ValueError("Manager ID may contain letters, numbers, dot, underscore, or hyphen.")
+    password = getpass.getpass("New manager password (12+ characters): ")
+    confirmation = getpass.getpass("Confirm password: ")
+    if len(password) < 12:
+        raise ValueError("Password must contain at least 12 characters.")
+    if len(password.encode("utf-8")) > 72:
+        raise ValueError("Password must not exceed 72 UTF-8 bytes.")
+    if password != confirmation:
+        raise ValueError("Passwords do not match.")
+
+    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO managers (manager_id, password_hash) VALUES (%s, %s)",
+                (manager_id, password_hash),
+            )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    print(f"Manager {manager_id} created.")
+
+
 def set_shift(employee_id, days, shift_start, shift_end):
     if shift_start == shift_end:
         raise ValueError("Shift start and end cannot be the same time.")
@@ -136,6 +165,8 @@ def main(argv=None):
                 connection.close()
         elif args.command == "create-employee":
             create_employee(args.employee_id, args.days, args.shift_start, args.shift_end)
+        elif args.command == "create-manager":
+            create_manager(args.manager_id)
         elif args.command == "set-shift":
             set_shift(args.employee_id, args.days, args.shift_start, args.shift_end)
     return 0

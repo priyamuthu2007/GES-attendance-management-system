@@ -72,10 +72,21 @@
 
           <div id="attendance-status" class="attendance-status hidden"></div>
           <button id="attendance-action" class="primary-button" type="button" disabled>Get location</button>
+
+          <section class="exception-panel" aria-labelledby="exception-title">
+            <h2 id="exception-title">GPS not working?</h2>
+            <p>Request a manager review. If approved, attendance is recorded at the request time without GPS verification.</p>
+            <label for="exception-reason">Reason for your request</label>
+            <textarea id="exception-reason" minlength="10" maxlength="500" required></textarea>
+            <button id="exception-submit" class="secondary-button" type="button">Request manual review</button>
+            <p id="exception-status" class="exception-status hidden" role="status"></p>
+          </section>
+          <button id="refresh-attendance" class="text-button" type="button">Refresh attendance status</button>
         </section>
 
         <p id="notice" class="notice hidden" role="status"></p>
         <p class="privacy-note">Your GPS coordinates are recorded only when you check in or check out.</p>
+        <p class="manager-link"><a href="/manager">Manager review sign-in</a></p>
       </section>
       <footer>GES SMART ATTENDANCE <span>·</span> LOCATION-VERIFIED CHECK-IN</footer>
     </main>

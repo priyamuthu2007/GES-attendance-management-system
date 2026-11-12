@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#123c43">
+    <title>Manager review · GES Smart Attendance</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='manager.js') }}" defer></script>
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="GES Smart Attendance home">
+          <span class="brand-mark">G</span>
+          <span>GES <span class="brand-light">ATTENDANCE</span></span>
+        </a>
+        <button id="manager-sign-out" class="text-button hidden" type="button">Sign out</button>
+      </header>
+
+      <section class="content manager-content">
+        <div class="eyebrow"><span class="live-dot"></span> MANAGER REVIEW</div>
+        <h1>Attendance exceptions.</h1>
+        <p class="intro">Review GPS exception requests. Approval records attendance at the request time without GPS verification.</p>
+
+        <form id="manager-login-form" class="card login-card">
+          <label for="manager-id">Manager ID</label>
+          <input id="manager-id" autocomplete="username" maxlength="64" required>
+          <label for="manager-password">Password</label>
+          <input id="manager-password" type="password" autocomplete="current-password" required>
+          <button id="manager-login-button" class="primary-button" type="submit">Sign in</button>
+        </form>
+
+        <section id="manager-dashboard" class="hidden" aria-live="polite">
+          <div class="manager-toolbar">
+            <h2 id="manager-heading"></h2>
+            <button id="manager-refresh" class="secondary-button" type="button">Refresh requests</button>
+          </div>
+          <div id="manager-requests" class="request-list"></div>
+        </section>
+        <p id="manager-notice" class="notice hidden" role="status"></p>
+        <p class="manager-link"><a href="/">Employee sign-in</a></p>
+      </section>
+      <footer>GES SMART ATTENDANCE <span>·</span> MANUAL REVIEWS ARE AUDITED</footer>
+    </main>
+  </body>
+</html>

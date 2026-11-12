@@ -29,7 +29,12 @@ def attendance_to_json(record, time_zone):
         "attendanceDate": record["attendance_date"].isoformat(),
         "checkInAt": local_time_string(record["check_in_at"], time_zone),
         "checkInOffice": record["check_in_office_name"],
-        "checkInDistanceMeters": float(record["check_in_distance_meters"]),
+        "checkInDistanceMeters": (
+            float(record["check_in_distance_meters"])
+            if record["check_in_distance_meters"] is not None
+            else None
+        ),
+        "checkInSource": record.get("check_in_source", "gps"),
         "checkOutAt": local_time_string(record["check_out_at"], time_zone),
         "checkOutOffice": record["check_out_office_name"],
         "checkOutDistanceMeters": (
@@ -37,6 +42,7 @@ def attendance_to_json(record, time_zone):
             if record["check_out_distance_meters"] is not None
             else None
         ),
+        "checkOutSource": record.get("check_out_source"),
         "shift": {
             "start": time_string(record["shift_start"]),
             "end": time_string(record["shift_end"]),
@@ -56,6 +62,14 @@ def get_today_state(time_zone, offices):
             (employee_id, today),
         )
         record = cursor.fetchone()
+        cursor.execute(
+            """SELECT request_id, action, status, reason, created_at
+               FROM attendance_exception_requests
+               WHERE employee_id = %s AND status = 'pending'
+               ORDER BY created_at DESC LIMIT 1""",
+            (employee_id,),
+        )
+        exception_request = cursor.fetchone()
         if not record:
             cursor.execute(
                 """SELECT * FROM attendance
@@ -68,6 +82,16 @@ def get_today_state(time_zone, offices):
         "employeeId": employee_id,
         "shift": shift,
         "attendance": attendance_to_json(record, time_zone),
+        "exceptionRequest": (
+            {
+                "requestId": exception_request["request_id"],
+                "action": exception_request["action"],
+                "status": exception_request["status"],
+                "reason": exception_request["reason"],
+            }
+            if exception_request
+            else None
+        ),
         "timeZone": time_zone,
         "offices": [
             {"id": office["id"], "name": office["name"],
@@ -198,7 +222,8 @@ def create_check_out(config, employee_id):
                 """UPDATE attendance
                    SET check_out_at = %s, check_out_latitude = %s, check_out_longitude = %s,
                        check_out_accuracy_meters = %s, check_out_distance_meters = %s,
-                       check_out_office_id = %s, check_out_office_name = %s
+                       check_out_office_id = %s, check_out_office_name = %s,
+                       check_out_source = 'gps'
                    WHERE attendance_id = %s AND check_out_at IS NULL""",
                 (
                     utc_for_database(now),

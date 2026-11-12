@@ -12,12 +12,13 @@ The separate [`mobile/`](./mobile/) Flutter project implements offline-first att
 4. The employee checks in only if the server-calculated nearest-office distance plus GPS-reported accuracy is no more than 50 m. GPS accuracy must also be 25 m or better.
 5. The same fresh-location and server-side checks apply to check-out.
 6. MySQL stores the employee, office-local attendance date, UTC check-in/check-out timestamps, coordinates, GPS accuracy, distance, and office used. Database uniqueness prevents multiple daily records; a transaction locks the employee row to prevent concurrent open check-ins.
+7. If GPS is unavailable, an employee can submit an exception request with a reason. A separately authenticated manager can approve or reject it. Approval records attendance at the server-captured request time, marks it as manually approved, and records the manager, decision time, and note. Manual approval bypasses geofence verification and must only be used as a supervised pilot fallback.
 
 The app does not force check-in during shift hours; it fetches and displays the assigned shift as in the supplied workflow. An employee must have a shift assigned for that weekday to check in. An open check-in must be checked out before another check-in can be created.
 
 ## Local development
 
-Requirements: Python 3.11+, MySQL Community Server 8+, and the standalone [`FRONTEND.html`](../FRONTEND.html) file in the directory containing this project folder. Flask serves that file at `/`; its JavaScript and stylesheet are served by Flask from this project.
+Requirements: Python 3.11+ and MySQL Community Server 8+.
 
 1. Create a MySQL database and separate application and schema-migration users. The app account cannot alter tables; use the migration account only for `manage.py init-db`. Connect as a MySQL administrator and run:
 
@@ -58,6 +59,14 @@ Requirements: Python 3.11+, MySQL Community Server 8+, and the standalone [`FRON
    .\.venv\Scripts\python.exe manage.py set-shift EMPLOYEE-001 --days mon,tue,wed,thu,fri --shift-start 09:00 --shift-end 17:00
    ```
 
+   Provision managers separately; their credentials cannot be used to sign in as employees:
+
+   ```powershell
+   .\.venv\Scripts\python.exe manage.py create-manager MANAGER-001
+   ```
+
+   Managers review pending exceptions at `/manager`.
+
 6. Run a local development server:
 
    ```powershell
@@ -65,14 +74,14 @@ Requirements: Python 3.11+, MySQL Community Server 8+, and the standalone [`FRON
    .\.venv\Scripts\flask.exe --app wsgi:app run --host 127.0.0.1 --port 5000
    ```
 
-   Open `http://127.0.0.1:5000`. Browser geolocation works on localhost for development. For normal use, the HTTPS URL provided by the private VPN is required.
+   Open `http://127.0.0.1:5000`. Browser geolocation works on localhost for development. For phones and normal use, the HTTPS URL provided by the private VPN is required.
 
 ## Self-host at the Anna Nagar office
 
 The Anna Nagar PC is the single app/MySQL host. The Manapakkam PC and employee phones use a private VPN to reach the same app and database. Do not start a separate app or database at the second office.
 
 1. Install Python 3.11+, MySQL 8+, and Tailscale on the Anna Nagar host. Keep MySQL local-only; do not open port 3306 to the internet or office Wi-Fi. Set MySQL to start automatically with Windows.
-2. Create the database/user above. Copy the project onto the host and place `FRONTEND.html` beside the project folder. Configure the project's ignored `.env`. For the host-to-MySQL local connection, use `MYSQL_HOST=127.0.0.1`.
+2. Create the database/users above. Copy the project onto the host and configure its ignored `.env`. For the host-to-MySQL local connection, use `MYSQL_HOST=127.0.0.1`.
 3. Open PowerShell as Administrator in the project folder and install the app startup task:
 
    ```powershell
@@ -98,6 +107,7 @@ Private VPN plan terms may limit business use or device counts; confirm your org
 
 - Passwords use bcrypt; session cookies are HTTP-only, SameSite, and HTTPS-secure for the tailnet deployment. State-changing API calls use CSRF protection and login attempts are rate limited. The app's MySQL account has only data access; schema changes require the separate migration account.
 - The server repeats all coordinate/radius checks; the browser is not trusted to authorize attendance.
+- Manual exception approvals are recorded separately from GPS-verified attendance but can still affect payroll. Restrict manager credentials, require documented reasons, and review the manager decision trail. Approval does not verify physical presence.
 - Browser GPS coordinates and accuracy can be spoofed, and indoor GPS may be poor. This is not proof of physical presence. If attendance has payroll/legal significance, add an onsite control (such as managed-device verification, a rotating office QR code, NFC, or supervised exception workflow).
 - The system stores employee coordinates and attendance times. Define notice, access controls, retention, backup, and deletion policies for employee data.
 - This MySQL schema is for a new database and does not automatically migrate existing PostgreSQL records.

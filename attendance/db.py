@@ -50,6 +50,28 @@ def init_db(connection=None):
             for statement in schema.split(";"):
                 if statement.strip():
                     cursor.execute(statement)
+            cursor.execute(
+                """SELECT COLUMN_NAME, IS_NULLABLE
+                   FROM information_schema.COLUMNS
+                   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance'"""
+            )
+            attendance_columns = {
+                row["COLUMN_NAME"]: row["IS_NULLABLE"] for row in cursor.fetchall()
+            }
+            for column in (
+                "check_in_latitude",
+                "check_in_longitude",
+                "check_in_accuracy_meters",
+                "check_in_distance_meters",
+            ):
+                if attendance_columns.get(column) == "NO":
+                    cursor.execute(f"ALTER TABLE attendance MODIFY {column} DOUBLE NULL")
+            for column, definition in (
+                ("check_in_source", "VARCHAR(24) NOT NULL DEFAULT 'gps'"),
+                ("check_out_source", "VARCHAR(24) NULL"),
+            ):
+                if column not in attendance_columns:
+                    cursor.execute(f"ALTER TABLE attendance ADD COLUMN {column} {definition}")
         connection.commit()
     except Exception:
         connection.rollback()

@@ -19,8 +19,26 @@ class FakeCursor:
         return None
 
     def execute(self, query, params):
-        if "FROM employees" in query:
-            self.result = {"employee_id": "EMPLOYEE-1"}
+        if "FROM managers" in query:
+            self.result = {"manager_id": "MANAGER-1"}
+        elif "SELECT * FROM attendance_exception_requests" in query:
+            self.result = self.connection.exception_record
+        elif "UPDATE attendance_exception_requests" in query:
+            self.connection.exception_record.update(
+                {
+                    "status": params[0],
+                    "manager_id": params[1],
+                    "decision_note": params[2],
+                    "attendance_id": params[3],
+                }
+            )
+            self.rowcount = 1
+        elif "FROM employees" in query:
+            self.result = {"employee_id": "EMPLOYEE-1", "active": True}
+        elif "INSERT INTO attendance_exception_requests" in query:
+            self.connection.exception_request = params
+            self.lastrowid = 7
+            self.rowcount = 1
         elif "FROM employee_shifts" in query:
             self.result = (
                 {
@@ -54,25 +72,39 @@ class FakeCursor:
                 else None
             )
         elif "INSERT INTO attendance" in query:
-            (
-                employee_id,
-                attendance_date,
-                shift_start,
-                shift_end,
-                check_in_at,
-                latitude,
-                longitude,
-                accuracy,
-                distance,
-                office_id,
-                office_name,
-            ) = params
+            if "check_in_source" in query:
+                (
+                    employee_id,
+                    attendance_date,
+                    shift_start,
+                    shift_end,
+                    check_in_at,
+                ) = params
+                latitude = longitude = accuracy = distance = None
+                office_id = "manual"
+                office_name = "Manually approved"
+                check_in_source = "manual_approval"
+            else:
+                (
+                    employee_id,
+                    attendance_date,
+                    shift_start,
+                    shift_end,
+                    check_in_at,
+                    latitude,
+                    longitude,
+                    accuracy,
+                    distance,
+                    office_id,
+                    office_name,
+                ) = params
+                check_in_source = "gps"
             self.connection.record = {
                 "attendance_id": 1,
                 "employee_id": employee_id,
                 "attendance_date": attendance_date,
-                "shift_start": time.fromisoformat(shift_start),
-                "shift_end": time.fromisoformat(shift_end),
+                "shift_start": time.fromisoformat(shift_start) if isinstance(shift_start, str) else shift_start,
+                "shift_end": time.fromisoformat(shift_end) if isinstance(shift_end, str) else shift_end,
                 "check_in_at": check_in_at,
                 "check_in_latitude": latitude,
                 "check_in_longitude": longitude,
@@ -80,6 +112,7 @@ class FakeCursor:
                 "check_in_distance_meters": distance,
                 "check_in_office_id": office_id,
                 "check_in_office_name": office_name,
+                "check_in_source": check_in_source,
                 "check_out_at": None,
                 "check_out_distance_meters": None,
                 "check_out_office_name": None,
@@ -125,6 +158,8 @@ class FakeConnection:
     def __init__(self, record=None, has_shift=True):
         self.record = record
         self.has_shift = has_shift
+        self.exception_request = None
+        self.exception_record = None
 
     def cursor(self):
         return FakeCursor(self)
@@ -167,6 +202,12 @@ class AppTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 response.close()
 
+    def test_manager_page_uses_separate_review_portal(self):
+        response = self.client.get("/manager")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"MANAGER REVIEW", response.data)
+        self.assertIn(b"/static/manager.js", response.data)
+
     def test_health_liveness_is_available(self):
         response = self.client.get("/api/health/live")
         self.assertEqual(response.status_code, 200)
@@ -174,6 +215,17 @@ class AppTests(unittest.TestCase):
 
     def test_attendance_api_requires_employee_login(self):
         response = self.client.get("/api/attendance/today")
+        self.assertEqual(response.status_code, 401)
+
+    def test_manager_request_queue_requires_a_manager_login(self):
+        response = self.client.get("/api/manager/requests")
+        self.assertEqual(response.status_code, 401)
+
+    def test_employee_exception_request_requires_employee_login(self):
+        response = self.client.post(
+            "/api/attendance/exception-requests",
+            json={"reason": "GPS signal is weak indoors"},
+        )
         self.assertEqual(response.status_code, 401)
 
     def test_state_changing_routes_require_csrf(self):
@@ -259,6 +311,55 @@ class AppTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 409)
         self.assertIsNone(connection.record)
+
+    def test_employee_can_request_manual_review_with_a_reason(self):
+        with self.client.session_transaction() as browser_session:
+            browser_session["employee_id"] = "EMPLOYEE-1"
+        connection = FakeConnection()
+        with patch("attendance.db.get_connection", return_value=connection):
+            response = self.client.post(
+                "/api/attendance/exception-requests",
+                json={"reason": "GPS signal is weak indoors"},
+            )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json["request"]["action"], "check-in")
+        self.assertEqual(response.json["request"]["status"], "pending")
+        self.assertEqual(connection.exception_request[-1], "GPS signal is weak indoors")
+
+    def test_employee_exception_request_requires_a_meaningful_reason(self):
+        with self.client.session_transaction() as browser_session:
+            browser_session["employee_id"] = "EMPLOYEE-1"
+        with patch("attendance.db.get_connection", return_value=FakeConnection()):
+            response = self.client.post(
+                "/api/attendance/exception-requests",
+                json={"reason": "GPS"},
+            )
+        self.assertEqual(response.status_code, 400)
+
+    def test_manager_approval_creates_a_manual_attendance_record(self):
+        connection = FakeConnection()
+        connection.exception_record = {
+            "request_id": 7,
+            "employee_id": "EMPLOYEE-1",
+            "attendance_date": datetime.now().date(),
+            "action": "check-in",
+            "requested_at": datetime.now(timezone.utc).replace(tzinfo=None),
+            "shift_start": time(9, 0),
+            "shift_end": time(17, 0),
+            "status": "pending",
+        }
+        with self.client.session_transaction() as browser_session:
+            browser_session["manager_id"] = "MANAGER-1"
+        with patch("attendance.db.get_connection", return_value=connection):
+            response = self.client.post(
+                "/api/manager/requests/7/decision",
+                json={"decision": "approved", "note": "Confirmed with supervisor"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(connection.record["check_in_source"], "manual_approval")
+        self.assertIsNone(connection.record["check_in_latitude"])
+        self.assertEqual(connection.exception_record["status"], "approved")
+        self.assertEqual(connection.exception_record["manager_id"], "MANAGER-1")
 
 
 if __name__ == "__main__":

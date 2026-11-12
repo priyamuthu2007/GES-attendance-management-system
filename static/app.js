@@ -4,6 +4,7 @@ const state = {
   timeZone: "Asia/Kolkata",
   offices: [],
   attendance: null,
+  exceptionRequest: null,
   shift: null,
   position: null,
   busy: false,
@@ -30,6 +31,10 @@ const elements = {
   refreshLocation: document.querySelector("#refresh-location"),
   attendanceStatus: document.querySelector("#attendance-status"),
   attendanceAction: document.querySelector("#attendance-action"),
+  exceptionReason: document.querySelector("#exception-reason"),
+  exceptionSubmit: document.querySelector("#exception-submit"),
+  exceptionStatus: document.querySelector("#exception-status"),
+  refreshAttendance: document.querySelector("#refresh-attendance"),
   notice: document.querySelector("#notice"),
 };
 
@@ -80,6 +85,7 @@ function clearNotice() {
 function showLogin() {
   state.employeeId = "";
   state.attendance = null;
+  state.exceptionRequest = null;
   state.shift = null;
   state.position = null;
   elements.loginForm.classList.remove("hidden");
@@ -165,11 +171,13 @@ function renderAttendance() {
   elements.attendanceStatus.classList.toggle("hidden", !attendance);
   if (attendance) {
     const checkInTime = formatTime(attendance.checkInAt);
+    const checkInSource =
+      attendance.checkInSource === "manual_approval" ? " · manually approved" : "";
     const checkoutLine = attendance.checkOutAt
-      ? `<br>Check-out: ${escapeHtml(formatTime(attendance.checkOutAt))} · ${escapeHtml(attendance.checkOutOffice)}`
+      ? `<br>Check-out: ${escapeHtml(formatTime(attendance.checkOutAt))} · ${escapeHtml(attendance.checkOutOffice)}${attendance.checkOutSource === "manual_approval" ? " · manually approved" : ""}`
       : "<br>Check-out has not been recorded.";
     elements.attendanceStatus.innerHTML =
-      `<strong>Check-in: ${escapeHtml(checkInTime)} · ${escapeHtml(attendance.checkInOffice)}</strong>${checkoutLine}`;
+      `<strong>Check-in: ${escapeHtml(checkInTime)} · ${escapeHtml(attendance.checkInOffice)}${checkInSource}</strong>${checkoutLine}`;
     if (checkedOut) {
       elements.attendanceAction.textContent = "Attendance completed for today";
     } else {
@@ -192,6 +200,25 @@ function renderAttendance() {
     hasOpenCheckIn ? "Mark check-out" : "Mark check-in",
   );
   elements.refreshLocation.disabled = state.busy;
+  renderExceptionRequest();
+}
+
+function renderExceptionRequest() {
+  const attendance = state.attendance;
+  const hasOpenCheckIn = Boolean(attendance && !attendance.checkOutAt);
+  const completed = Boolean(attendance?.checkOutAt);
+  const canRequest = Boolean(state.shift || hasOpenCheckIn);
+  const pending = Boolean(state.exceptionRequest);
+  elements.exceptionSubmit.disabled = state.busy || pending || completed || !canRequest;
+  elements.exceptionReason.disabled = state.busy || pending || completed || !canRequest;
+  elements.exceptionStatus.classList.toggle("hidden", !pending);
+  if (pending) {
+    elements.exceptionStatus.textContent =
+      `Pending manager review for ${state.exceptionRequest.action}. Your request has not yet changed attendance.`;
+  } else {
+    elements.exceptionStatus.textContent = "";
+  }
+  elements.refreshAttendance.disabled = state.busy;
 }
 
 async function getCurrentLocation() {
@@ -244,6 +271,7 @@ async function loadAttendance() {
   state.timeZone = result.timeZone;
   state.shift = result.shift;
   state.attendance = result.attendance;
+  state.exceptionRequest = result.exceptionRequest;
   state.offices = result.offices;
   elements.shiftInfo.textContent = state.shift
     ? `${state.shift.start} – ${state.shift.end}`
@@ -251,6 +279,37 @@ async function loadAttendance() {
   elements.officeList.textContent = state.offices.map((office) => office.name).join(" or ");
   showAttendancePage(result.employeeId);
   renderAttendance();
+}
+
+async function submitExceptionRequest() {
+  if (state.busy) return;
+  state.busy = true;
+  renderAttendance();
+  clearNotice();
+  try {
+    const result = await api("/api/attendance/exception-requests", {
+      method: "POST",
+      body: JSON.stringify({ reason: elements.exceptionReason.value }),
+    });
+    state.exceptionRequest = result.request;
+    elements.exceptionReason.value = "";
+    renderAttendance();
+    showNotice(result.message, "success");
+  } catch (error) {
+    showNotice(error.message, "error");
+  } finally {
+    state.busy = false;
+    renderAttendance();
+  }
+}
+
+async function refreshAttendance() {
+  try {
+    await loadAttendance();
+    showNotice("Attendance status refreshed.", "success");
+  } catch (error) {
+    showNotice(error.message, "error");
+  }
 }
 
 async function signIn(event) {
@@ -358,6 +417,8 @@ elements.loginForm.addEventListener("submit", signIn);
 elements.signOut.addEventListener("click", signOut);
 elements.refreshLocation.addEventListener("click", refreshLocation);
 elements.attendanceAction.addEventListener("click", submitAttendance);
+elements.exceptionSubmit.addEventListener("click", submitExceptionRequest);
+elements.refreshAttendance.addEventListener("click", refreshAttendance);
 
 async function initialize() {
   try {

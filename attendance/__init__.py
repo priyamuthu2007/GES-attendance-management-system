@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import bcrypt
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, send_file, session
+from flask import Flask, jsonify, render_template, request, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFError, CSRFProtect, generate_csrf
@@ -150,7 +150,11 @@ def create_app(test_config=None):
 
     @app.get("/")
     def index():
-        return send_file(ROOT.parent / "FRONTEND.html", max_age=0)
+        return render_template("index.html")
+
+    @app.get("/manager")
+    def manager_page():
+        return render_template("manager.html")
 
     @app.get("/api/health/live")
     def health_live():
@@ -190,12 +194,95 @@ def create_app(test_config=None):
 
         @wraps(view)
         def wrapped(*args, **kwargs):
+            if not session.get("employee_id"):
+                return jsonify(error="Please sign in to continue."), 401
             if not current_employee():
                 session.clear()
                 return jsonify(error="Please sign in to continue."), 401
             return view(*args, **kwargs)
 
         return wrapped
+
+    def manager_required(view):
+        from functools import wraps
+
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            manager_id = session.get("manager_id")
+            if not manager_id:
+                return jsonify(error="Please sign in with a manager account."), 401
+            cursor = db.get_connection().cursor()
+            try:
+                cursor.execute(
+                    "SELECT manager_id FROM managers WHERE manager_id = %s AND active = 1",
+                    (manager_id,),
+                )
+                if not cursor.fetchone():
+                    session.clear()
+                    return jsonify(error="Manager account is inactive."), 403
+            finally:
+                cursor.close()
+            return view(*args, **kwargs)
+
+        return wrapped
+
+    @app.post("/api/manager/auth/login")
+    @limiter.limit("10 per 15 minutes")
+    def manager_login():
+        body = request.get_json(silent=True) or {}
+        if not isinstance(body, dict):
+            body = {}
+        manager_id = body.get("managerId")
+        password = body.get("password")
+        if (
+            not isinstance(manager_id, str)
+            or not isinstance(password, str)
+            or not manager_id.strip()
+            or not password
+        ):
+            return jsonify(error="Enter your manager ID and password."), 400
+
+        session.clear()
+        cursor = db.get_connection().cursor()
+        try:
+            cursor.execute(
+                "SELECT manager_id, password_hash, active FROM managers WHERE manager_id = %s",
+                (manager_id.strip(),),
+            )
+            manager = cursor.fetchone()
+        finally:
+            cursor.close()
+
+        valid_password = manager and manager["active"] and bcrypt.checkpw(
+            password.encode("utf-8"), manager["password_hash"].encode("utf-8")
+        )
+        if not valid_password:
+            return jsonify(error="Manager ID or password is incorrect."), 401
+
+        session.clear()
+        session.permanent = True
+        session["manager_id"] = manager["manager_id"]
+        return jsonify(managerId=manager["manager_id"])
+
+    @app.post("/api/manager/auth/logout")
+    @manager_required
+    def manager_logout():
+        session.clear()
+        return jsonify(status="signed_out")
+
+    @app.get("/api/manager/requests")
+    @manager_required
+    def manager_requests():
+        from .approval_routes import list_manager_requests
+
+        return list_manager_requests(app.config["OFFICE_TIMEZONE"])
+
+    @app.post("/api/manager/requests/<int:request_id>/decision")
+    @manager_required
+    def manager_decide_request(request_id):
+        from .approval_routes import decide_exception_request
+
+        return decide_exception_request(app.config, session["manager_id"], request_id)
 
     @app.post("/api/auth/login")
     @limiter.limit("10 per 15 minutes")
@@ -213,6 +300,7 @@ def create_app(test_config=None):
         ):
             return jsonify(error="Enter your employee ID and password."), 400
 
+        session.clear()
         cursor = db.get_connection().cursor()
         try:
             cursor.execute(
@@ -229,7 +317,6 @@ def create_app(test_config=None):
         if not valid_password:
             return jsonify(error="Employee ID or password is incorrect."), 401
 
-        session.clear()
         session.permanent = True
         session["employee_id"] = employee["employee_id"]
         return jsonify(employeeId=employee["employee_id"])
@@ -260,5 +347,13 @@ def create_app(test_config=None):
         from .attendance_routes import create_check_out
 
         return create_check_out(app.config, session["employee_id"])
+
+    @app.post("/api/attendance/exception-requests")
+    @login_required
+    @limiter.limit("5 per hour")
+    def create_attendance_exception_request():
+        from .approval_routes import create_exception_request
+
+        return create_exception_request(app.config, session["employee_id"])
 
     return app
