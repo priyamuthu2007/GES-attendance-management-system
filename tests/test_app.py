@@ -154,8 +154,18 @@ class AppTests(unittest.TestCase):
     def test_home_serves_plain_html_app(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
+        self.assertIn(b"/static/styles.css", response.data)
+        self.assertIn(b"/static/app.js", response.data)
         self.assertIn(b"Assigned shift", response.data)
         self.assertIn(b'id="attendance-action"', response.data)
+        response.close()
+
+    def test_home_assets_are_served_by_flask(self):
+        for path in ("/static/styles.css", "/static/app.js"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                response.close()
 
     def test_health_liveness_is_available(self):
         response = self.client.get("/api/health/live")

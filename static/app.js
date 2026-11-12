@@ -33,7 +33,7 @@ const elements = {
   notice: document.querySelector("#notice"),
 };
 
-async function api(path, options = {}) {
+async function api(path, options = {}, retryCsrf = true) {
   const headers = { ...options.headers };
   if (options.body) headers["Content-Type"] = "application/json";
   if (options.method && options.method !== "GET") {
@@ -46,6 +46,14 @@ async function api(path, options = {}) {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (
+      retryCsrf &&
+      response.status === 400 &&
+      body.error === "Security token expired. Refresh the page and try again."
+    ) {
+      await renewCsrfToken();
+      return api(path, options, false);
+    }
     if (response.status === 401 && path !== "/api/auth/login") {
       showLogin();
     }

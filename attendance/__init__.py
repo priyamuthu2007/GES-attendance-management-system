@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import bcrypt
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request, session
+from flask import Flask, jsonify, request, send_file, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFError, CSRFProtect, generate_csrf
@@ -96,7 +96,10 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
     if not app.config["SECRET_KEY"] and not app.config["TESTING"]:
-        raise RuntimeError("Set FLASK_SECRET_KEY to a long, random value in .env.")
+        raise RuntimeError(
+            "FLASK_SECRET_KEY is missing. Copy .env.example to .env and set "
+            "FLASK_SECRET_KEY to a random value of at least 32 characters."
+        )
     if (
         not app.config["TESTING"]
         and len(app.config["SECRET_KEY"]) < 32
@@ -147,7 +150,7 @@ def create_app(test_config=None):
 
     @app.get("/")
     def index():
-        return render_template("index.html")
+        return send_file(ROOT.parent / "FRONTEND.html", max_age=0)
 
     @app.get("/api/health/live")
     def health_live():

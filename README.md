@@ -17,7 +17,7 @@ The app does not force check-in during shift hours; it fetches and displays the 
 
 ## Local development
 
-Requirements: Python 3.11+ and MySQL Community Server 8+.
+Requirements: Python 3.11+, MySQL Community Server 8+, and the standalone [`FRONTEND.html`](../FRONTEND.html) file in the directory containing this project folder. Flask serves that file at `/`; its JavaScript and stylesheet are served by Flask from this project.
 
 1. Create a MySQL database and separate application and schema-migration users. The app account cannot alter tables; use the migration account only for `manage.py init-db`. Connect as a MySQL administrator and run:
 
@@ -72,7 +72,7 @@ Requirements: Python 3.11+ and MySQL Community Server 8+.
 The Anna Nagar PC is the single app/MySQL host. The Manapakkam PC and employee phones use a private VPN to reach the same app and database. Do not start a separate app or database at the second office.
 
 1. Install Python 3.11+, MySQL 8+, and Tailscale on the Anna Nagar host. Keep MySQL local-only; do not open port 3306 to the internet or office Wi-Fi. Set MySQL to start automatically with Windows.
-2. Create the database/user above. Copy the project onto the host and configure its ignored `.env`. For the host-to-MySQL local connection, use `MYSQL_HOST=127.0.0.1`.
+2. Create the database/user above. Copy the project onto the host and place `FRONTEND.html` beside the project folder. Configure the project's ignored `.env`. For the host-to-MySQL local connection, use `MYSQL_HOST=127.0.0.1`.
 3. Open PowerShell as Administrator in the project folder and install the app startup task:
 
    ```powershell
