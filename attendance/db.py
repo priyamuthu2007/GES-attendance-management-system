@@ -1,8 +1,11 @@
 from pathlib import Path
+from queue import Empty, Full, LifoQueue
 
 import pymysql
 from flask import current_app, g
 from pymysql.cursors import DictCursor
+
+POOL_SIZE = 10
 
 
 def connect(config, migration=False):
@@ -32,13 +35,45 @@ def connect(config, migration=False):
 
 def get_connection():
     if "mysql_connection" not in g:
-        g.mysql_connection = connect(current_app.config)
+        pool = current_app.extensions.setdefault(
+            "mysql_connection_pool", LifoQueue(maxsize=POOL_SIZE)
+        )
+        while True:
+            try:
+                connection = pool.get_nowait()
+            except Empty:
+                connection = connect(current_app.config)
+                break
+            try:
+                connection.ping(reconnect=False)
+                break
+            except pymysql.MySQLError:
+                current_app.logger.info(
+                    "Discarding a stale pooled MySQL connection.", exc_info=True
+                )
+                connection.close()
+        g.mysql_connection = connection
     return g.mysql_connection
 
 
 def close_db(_error=None):
     connection = g.pop("mysql_connection", None)
-    if connection is not None:
+    if connection is None:
+        return
+    try:
+        connection.rollback()
+        connection.ping(reconnect=False)
+    except pymysql.MySQLError:
+        current_app.logger.warning(
+            "Discarding an unhealthy pooled MySQL connection.", exc_info=True
+        )
+        connection.close()
+        return
+
+    pool = current_app.extensions["mysql_connection_pool"]
+    try:
+        pool.put_nowait(connection)
+    except Full:
         connection.close()
 
 

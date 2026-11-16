@@ -41,13 +41,21 @@ Requirements: Python 3.11+ and MySQL Community Server 8+.
    .\.venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
 
-4. Create tables:
+4. For a local pilot, set `MYSQL_DATABASE=ges_attendance_pilot`, `MYSQL_USER=ges_staging_app`, and `MYSQL_MIGRATION_USER=ges_staging_migrator` in `.env`, with separate passwords. If those local MySQL accounts need to be synchronized to `.env`, run:
+
+   ```powershell
+   .\.venv\Scripts\python.exe scripts\sync-pilot-mysql-users.py
+   ```
+
+   The helper prompts for the local MySQL root password, creates the pilot database if needed, synchronizes the two pilot accounts, and applies their limited grants. It does not display or store passwords outside `.env`.
+
+5. Create tables:
 
    ```powershell
    .\.venv\Scripts\python.exe manage.py init-db
    ```
 
-5. Provision an employee and weekday shift (default weekdays 9 AM–5 PM):
+6. Provision an employee and weekday shift (default weekdays 9 AM–5 PM):
 
    ```powershell
    .\.venv\Scripts\python.exe manage.py create-employee EMPLOYEE-001 --days mon,tue,wed,thu,fri --shift-start 09:00 --shift-end 17:00
@@ -67,7 +75,7 @@ Requirements: Python 3.11+ and MySQL Community Server 8+.
 
    Managers review pending exceptions at `/manager`.
 
-6. Run a local development server:
+7. Run a local development server:
 
    ```powershell
    $env:SESSION_COOKIE_SECURE = "false"

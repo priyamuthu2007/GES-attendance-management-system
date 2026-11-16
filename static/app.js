@@ -242,7 +242,7 @@ async function getCurrentLocation() {
               : "Could not determine your location. Check device location services and try again.";
         reject(new Error(message));
       },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   });
 }
@@ -328,7 +328,7 @@ async function signIn(event) {
     elements.password.value = "";
     await renewCsrfToken();
     await loadAttendance();
-    await refreshLocation();
+    void refreshLocation();
   } catch (error) {
     showNotice(error.message, "error");
   } finally {
@@ -424,7 +424,7 @@ async function initialize() {
   try {
     await renewCsrfToken();
     await loadAttendance();
-    if (!state.attendance?.checkOutAt) await refreshLocation();
+    if (!state.attendance?.checkOutAt) void refreshLocation();
   } catch (error) {
     if (!error.message.includes("Please sign in")) {
       showNotice(error.message, "error");
