@@ -6,7 +6,7 @@ The separate [`mobile/`](./mobile/) Flutter project implements offline-first att
 
 ## Attendance workflow
 
-1. Employee signs in with an administrator-provisioned employee ID and password.
+1. Employee signs in with their administrator-provisioned email address and password. Email addresses are trimmed, lowercased, and unique across employee accounts; internal employee IDs remain the stable attendance record key.
 2. The app fetches the employee's assigned shift for the office-local day.
 3. The browser requests fresh GPS permission and shows the nearest office and distance.
 4. The employee checks in only if the server-calculated nearest-office distance plus GPS-reported accuracy is no more than 50 m. GPS accuracy must also be 25 m or better.
@@ -55,10 +55,10 @@ Requirements: Python 3.11+ and MySQL Community Server 8+.
    .\.venv\Scripts\python.exe manage.py init-db
    ```
 
-6. Provision an employee and weekday shift (default weekdays 9 AM–5 PM):
+6. Provision an employee with a unique email address and weekday shift (default weekdays 9 AM–5 PM):
 
    ```powershell
-   .\.venv\Scripts\python.exe manage.py create-employee EMPLOYEE-001 --days mon,tue,wed,thu,fri --shift-start 09:00 --shift-end 17:00
+   .\.venv\Scripts\python.exe manage.py create-employee EMPLOYEE-001 --email employee@example.com --days mon,tue,wed,thu,fri --shift-start 09:00 --shift-end 17:00
    ```
 
    The password is requested twice without being displayed. Change a shift with:
@@ -67,13 +67,13 @@ Requirements: Python 3.11+ and MySQL Community Server 8+.
    .\.venv\Scripts\python.exe manage.py set-shift EMPLOYEE-001 --days mon,tue,wed,thu,fri --shift-start 09:00 --shift-end 17:00
    ```
 
-   Provision managers separately; their credentials cannot be used to sign in as employees:
+   Provision managers separately with unique email addresses; their credentials cannot be used to sign in as employees:
 
    ```powershell
-   .\.venv\Scripts\python.exe manage.py create-manager MANAGER-001
+   .\.venv\Scripts\python.exe manage.py create-manager MANAGER-001 --email manager@example.com
    ```
 
-   Managers review pending exceptions at `/manager`.
+   Existing accounts can be assigned emails with `manage.py set-employee-email EMPLOYEE-001 --email employee@example.com` or `manage.py set-manager-email MANAGER-001 --email manager@example.com`. Managers review pending exceptions at `/manager`.
 
 7. Run a local development server:
 

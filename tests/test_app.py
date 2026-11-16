@@ -19,7 +19,10 @@ class FakeCursor:
         return None
 
     def execute(self, query, params):
-        if "FROM managers" in query:
+        self.connection.last_params = params
+        if "password_hash" in query and "FROM managers" in query:
+            self.result = self.connection.manager_login
+        elif "FROM managers" in query:
             self.result = {"manager_id": "MANAGER-1"}
         elif "SELECT * FROM attendance_exception_requests" in query:
             self.result = self.connection.exception_record
@@ -33,6 +36,8 @@ class FakeCursor:
                 }
             )
             self.rowcount = 1
+        elif "password_hash" in query and "FROM employees" in query:
+            self.result = self.connection.employee_login
         elif "FROM employees" in query:
             self.result = {"employee_id": "EMPLOYEE-1", "active": True}
         elif "INSERT INTO attendance_exception_requests" in query:
@@ -160,6 +165,9 @@ class FakeConnection:
         self.has_shift = has_shift
         self.exception_request = None
         self.exception_record = None
+        self.employee_login = None
+        self.manager_login = None
+        self.last_params = None
 
     def cursor(self):
         return FakeCursor(self)
@@ -233,6 +241,58 @@ class AppTests(unittest.TestCase):
         response = self.client.post("/api/auth/login", json={"employeeId": "A", "password": "B"})
         self.assertEqual(response.status_code, 400)
         self.assertIn("Security token", response.json["error"])
+
+    def test_employee_can_sign_in_with_normalized_email_and_keep_internal_id(self):
+        connection = FakeConnection()
+        connection.employee_login = {
+            "employee_id": "EMPLOYEE-1",
+            "email": "employee@example.com",
+            "password_hash": "hashed",
+            "active": True,
+        }
+        with patch("attendance.db.get_connection", return_value=connection), patch(
+            "attendance.bcrypt.checkpw", return_value=True
+        ):
+            response = self.client.post(
+                "/api/auth/login",
+                json={"email": "  Employee@Example.com ", "password": "valid-password"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["employeeId"], "EMPLOYEE-1")
+        self.assertEqual(response.json["employeeEmail"], "employee@example.com")
+        self.assertEqual(connection.last_params, ("employee@example.com",))
+        with self.client.session_transaction() as browser_session:
+            self.assertEqual(browser_session["employee_id"], "EMPLOYEE-1")
+
+    def test_manager_can_sign_in_with_email_and_keep_internal_id(self):
+        connection = FakeConnection()
+        connection.manager_login = {
+            "manager_id": "MANAGER-1",
+            "email": "manager@example.com",
+            "password_hash": "hashed",
+            "active": True,
+        }
+        with patch("attendance.db.get_connection", return_value=connection), patch(
+            "attendance.bcrypt.checkpw", return_value=True
+        ):
+            response = self.client.post(
+                "/api/manager/auth/login",
+                json={"email": "manager@example.com", "password": "valid-password"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["managerId"], "MANAGER-1")
+        self.assertEqual(response.json["managerEmail"], "manager@example.com")
+        with self.client.session_transaction() as browser_session:
+            self.assertEqual(browser_session["manager_id"], "MANAGER-1")
+
+    def test_login_rejects_malformed_email_before_database_access(self):
+        with patch("attendance.db.get_connection") as get_connection:
+            response = self.client.post(
+                "/api/auth/login",
+                json={"email": "not-an-email", "password": "valid-password"},
+            )
+        self.assertEqual(response.status_code, 400)
+        get_connection.assert_not_called()
 
     def test_check_in_rejects_inaccurate_gps_before_database_access(self):
         with self.client.session_transaction() as browser_session:

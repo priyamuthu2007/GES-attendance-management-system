@@ -2,7 +2,7 @@ let csrfToken = "";
 
 const elements = {
   form: document.querySelector("#manager-login-form"),
-  managerId: document.querySelector("#manager-id"),
+  managerEmail: document.querySelector("#manager-email"),
   password: document.querySelector("#manager-password"),
   loginButton: document.querySelector("#manager-login-button"),
   dashboard: document.querySelector("#manager-dashboard"),
@@ -56,11 +56,11 @@ function showLogin() {
   elements.heading.textContent = "";
 }
 
-function showDashboard(managerId) {
+function showDashboard(managerEmail) {
   elements.form.classList.add("hidden");
   elements.dashboard.classList.remove("hidden");
   elements.signOut.classList.remove("hidden");
-  elements.heading.textContent = `Signed in as ${managerId}`;
+  elements.heading.textContent = `Signed in as ${managerEmail}`;
 }
 
 function addText(parent, tag, text, className) {
@@ -80,7 +80,7 @@ function renderRequests(requests) {
   for (const item of requests) {
     const card = document.createElement("article");
     card.className = "card request-card";
-    const title = `${item.employeeId} · ${item.action} · ${item.attendanceDate}`;
+    const title = `${item.employeeEmail || item.employeeId} · ${item.action} · ${item.attendanceDate}`;
     addText(card, "h3", title);
     addText(
       card,
@@ -116,7 +116,7 @@ function renderRequests(requests) {
       addText(
         card,
         "p",
-        `${item.status === "approved" ? "Approved" : "Rejected"} by ${item.managerId} at ${new Date(item.decidedAt).toLocaleString()}`,
+        `${item.status === "approved" ? "Approved" : "Rejected"} by ${item.managerEmail || item.managerId} at ${new Date(item.decidedAt).toLocaleString()}`,
         "request-meta",
       );
       if (item.decisionNote) addText(card, "p", `Decision note: ${item.decisionNote}`);
@@ -158,13 +158,13 @@ async function signIn(event) {
     const result = await api("/api/manager/auth/login", {
       method: "POST",
       body: JSON.stringify({
-        managerId: elements.managerId.value.trim(),
+        email: elements.managerEmail.value.trim(),
         password: elements.password.value,
       }),
     });
     elements.password.value = "";
     await renewCsrfToken();
-    showDashboard(result.managerId);
+    showDashboard(result.managerEmail);
     await loadRequests();
     showNotice("Manager sign-in successful.", "success");
   } catch (error) {
@@ -193,7 +193,7 @@ async function initialize() {
   try {
     await renewCsrfToken();
     const result = await api("/api/manager/requests");
-    showDashboard("Manager");
+    showDashboard(result.managerEmail);
     renderRequests(result.requests);
   } catch (error) {
     showLogin();

@@ -51,6 +51,8 @@ def attendance_to_json(record, time_zone):
 
 
 def get_today_state(time_zone, offices):
+    from flask import session
+
     employee_id = request_employee_id()
     today = local_now(time_zone).date()
     connection = db.get_connection()
@@ -80,6 +82,7 @@ def get_today_state(time_zone, offices):
             record = cursor.fetchone()
     return {
         "employeeId": employee_id,
+        "employeeEmail": session.get("employee_email") or employee_id,
         "shift": shift,
         "attendance": attendance_to_json(record, time_zone),
         "exceptionRequest": (

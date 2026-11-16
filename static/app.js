@@ -1,6 +1,7 @@
 const state = {
   csrfToken: "",
   employeeId: "",
+  employeeEmail: "",
   timeZone: "Asia/Kolkata",
   offices: [],
   attendance: null,
@@ -17,7 +18,7 @@ const elements = {
   signOut: document.querySelector("#sign-out"),
   pageTitle: document.querySelector("#page-title"),
   pageIntro: document.querySelector("#page-intro"),
-  employeeId: document.querySelector("#employee-id"),
+  email: document.querySelector("#employee-email"),
   password: document.querySelector("#password"),
   signedInEmployee: document.querySelector("#signed-in-employee"),
   avatar: document.querySelector("#avatar"),
@@ -84,6 +85,7 @@ function clearNotice() {
 
 function showLogin() {
   state.employeeId = "";
+  state.employeeEmail = "";
   state.attendance = null;
   state.exceptionRequest = null;
   state.shift = null;
@@ -95,15 +97,15 @@ function showLogin() {
   elements.pageIntro.textContent = "Sign in with your employee account to continue.";
 }
 
-function showAttendancePage(employeeId) {
-  state.employeeId = employeeId;
+function showAttendancePage(email) {
+  state.employeeEmail = email;
   elements.loginForm.classList.add("hidden");
   elements.attendancePanel.classList.remove("hidden");
   elements.signOut.classList.remove("hidden");
   elements.pageTitle.textContent = "Good to see you.";
   elements.pageIntro.textContent = "Confirm your shift and location to record attendance.";
-  elements.signedInEmployee.textContent = employeeId;
-  elements.avatar.textContent = employeeId.charAt(0).toUpperCase();
+  elements.signedInEmployee.textContent = email;
+  elements.avatar.textContent = email.charAt(0).toUpperCase();
 }
 
 function nearestOffice(position) {
@@ -268,6 +270,7 @@ async function refreshLocation() {
 async function loadAttendance() {
   const result = await api("/api/attendance/today");
   state.employeeId = result.employeeId;
+  state.employeeEmail = result.employeeEmail;
   state.timeZone = result.timeZone;
   state.shift = result.shift;
   state.attendance = result.attendance;
@@ -277,7 +280,7 @@ async function loadAttendance() {
     ? `${state.shift.start} – ${state.shift.end}`
     : "No shift assigned today. Contact your administrator.";
   elements.officeList.textContent = state.offices.map((office) => office.name).join(" or ");
-  showAttendancePage(result.employeeId);
+  showAttendancePage(result.employeeEmail);
   renderAttendance();
 }
 
@@ -321,7 +324,7 @@ async function signIn(event) {
     await api("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({
-        employeeId: elements.employeeId.value.trim(),
+        email: elements.email.value.trim(),
         password: elements.password.value,
       }),
     });

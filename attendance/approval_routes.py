@@ -97,25 +97,28 @@ def create_exception_request(config, employee_id):
         return jsonify(error="Your request could not be saved. Please try again."), 500
 
 
-def list_manager_requests(time_zone):
+def list_manager_requests(time_zone, manager_email):
     connection = db.get_connection()
     with connection.cursor() as cursor:
         cursor.execute(
             """SELECT r.request_id, r.employee_id, r.attendance_date, r.action,
                       r.requested_at, r.shift_start, r.shift_end, r.reason,
                       r.status, r.manager_id, r.decided_at, r.decision_note,
-                      e.active
+                      e.active, e.email AS employee_email, m.email AS manager_email
                FROM attendance_exception_requests AS r
                JOIN employees AS e ON e.employee_id = r.employee_id
+               LEFT JOIN managers AS m ON m.manager_id = r.manager_id
                ORDER BY (r.status = 'pending') DESC, r.created_at DESC
                LIMIT 100"""
         )
         rows = cursor.fetchall()
     return jsonify(
+        managerEmail=manager_email,
         requests=[
             {
                 "requestId": row["request_id"],
                 "employeeId": row["employee_id"],
+                "employeeEmail": row["employee_email"],
                 "employeeActive": bool(row["active"]),
                 "attendanceDate": row["attendance_date"].isoformat(),
                 "action": row["action"],
@@ -127,6 +130,7 @@ def list_manager_requests(time_zone):
                 "reason": row["reason"],
                 "status": row["status"],
                 "managerId": row["manager_id"],
+                "managerEmail": row["manager_email"],
                 "decidedAt": (
                     local_time_string(row["decided_at"], time_zone)
                     if row["decided_at"]

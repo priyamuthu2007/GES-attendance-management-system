@@ -107,6 +107,28 @@ def init_db(connection=None):
             ):
                 if column not in attendance_columns:
                     cursor.execute(f"ALTER TABLE attendance ADD COLUMN {column} {definition}")
+            for table, index_name in (
+                ("employees", "employees_email_unique"),
+                ("managers", "managers_email_unique"),
+            ):
+                cursor.execute(
+                    """SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+                         AND COLUMN_NAME = 'email'""",
+                    (table,),
+                )
+                if not cursor.fetchone():
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN email VARCHAR(254) NULL")
+                cursor.execute(
+                    """SELECT INDEX_NAME FROM information_schema.STATISTICS
+                       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+                         AND COLUMN_NAME = 'email' AND NON_UNIQUE = 0""",
+                    (table,),
+                )
+                if not cursor.fetchone():
+                    cursor.execute(
+                        f"ALTER TABLE {table} ADD UNIQUE KEY {index_name} (email)"
+                    )
         connection.commit()
     except Exception:
         connection.rollback()

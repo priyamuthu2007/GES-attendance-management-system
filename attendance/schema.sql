@@ -1,8 +1,10 @@
 CREATE TABLE IF NOT EXISTS employees (
     employee_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    email VARCHAR(254) NULL,
     password_hash VARCHAR(255) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY employees_email_unique (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS employee_shifts (
@@ -64,9 +66,11 @@ CREATE TABLE IF NOT EXISTS attendance (
 
 CREATE TABLE IF NOT EXISTS managers (
     manager_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    email VARCHAR(254) NULL,
     password_hash VARCHAR(255) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY managers_email_unique (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS attendance_exception_requests (

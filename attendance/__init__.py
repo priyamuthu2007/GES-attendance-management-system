@@ -13,6 +13,7 @@ from flask_wtf.csrf import CSRFError, CSRFProtect, generate_csrf
 
 from . import db
 from .geofence import ATTENDANCE_RADIUS_METERS, MAX_GPS_ACCURACY_METERS
+from .identity import normalize_email
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
@@ -182,7 +183,8 @@ def create_app(test_config=None):
         cursor = db.get_connection().cursor()
         try:
             cursor.execute(
-                "SELECT employee_id FROM employees WHERE employee_id = %s AND active = 1",
+                """SELECT employee_id, email FROM employees
+                   WHERE employee_id = %s AND active = 1""",
                 (employee_id,),
             )
             return cursor.fetchone()
@@ -196,9 +198,15 @@ def create_app(test_config=None):
         def wrapped(*args, **kwargs):
             if not session.get("employee_id"):
                 return jsonify(error="Please sign in to continue."), 401
-            if not current_employee():
+            employee = current_employee()
+            if not employee:
                 session.clear()
                 return jsonify(error="Please sign in to continue."), 401
+            session["employee_email"] = (
+                employee.get("email")
+                or session.get("employee_email")
+                or employee["employee_id"]
+            )
             return view(*args, **kwargs)
 
         return wrapped
@@ -214,12 +222,19 @@ def create_app(test_config=None):
             cursor = db.get_connection().cursor()
             try:
                 cursor.execute(
-                    "SELECT manager_id FROM managers WHERE manager_id = %s AND active = 1",
+                    """SELECT manager_id, email FROM managers
+                       WHERE manager_id = %s AND active = 1""",
                     (manager_id,),
                 )
-                if not cursor.fetchone():
+                manager = cursor.fetchone()
+                if not manager:
                     session.clear()
                     return jsonify(error="Manager account is inactive."), 403
+                session["manager_email"] = (
+                    manager.get("email")
+                    or session.get("manager_email")
+                    or manager["manager_id"]
+                )
             finally:
                 cursor.close()
             return view(*args, **kwargs)
@@ -232,22 +247,26 @@ def create_app(test_config=None):
         body = request.get_json(silent=True) or {}
         if not isinstance(body, dict):
             body = {}
-        manager_id = body.get("managerId")
+        manager_email = body.get("email")
         password = body.get("password")
         if (
-            not isinstance(manager_id, str)
+            not isinstance(manager_email, str)
             or not isinstance(password, str)
-            or not manager_id.strip()
             or not password
         ):
-            return jsonify(error="Enter your manager ID and password."), 400
+            return jsonify(error="Enter your manager email and password."), 400
+        try:
+            manager_email = normalize_email(manager_email)
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
 
         session.clear()
         cursor = db.get_connection().cursor()
         try:
             cursor.execute(
-                "SELECT manager_id, password_hash, active FROM managers WHERE manager_id = %s",
-                (manager_id.strip(),),
+                """SELECT manager_id, email, password_hash, active
+                   FROM managers WHERE email = %s""",
+                (manager_email,),
             )
             manager = cursor.fetchone()
         finally:
@@ -257,12 +276,13 @@ def create_app(test_config=None):
             password.encode("utf-8"), manager["password_hash"].encode("utf-8")
         )
         if not valid_password:
-            return jsonify(error="Manager ID or password is incorrect."), 401
+            return jsonify(error="Manager email or password is incorrect."), 401
 
         session.clear()
         session.permanent = True
         session["manager_id"] = manager["manager_id"]
-        return jsonify(managerId=manager["manager_id"])
+        session["manager_email"] = manager["email"]
+        return jsonify(managerId=manager["manager_id"], managerEmail=manager["email"])
 
     @app.post("/api/manager/auth/logout")
     @manager_required
@@ -275,7 +295,9 @@ def create_app(test_config=None):
     def manager_requests():
         from .approval_routes import list_manager_requests
 
-        return list_manager_requests(app.config["OFFICE_TIMEZONE"])
+        return list_manager_requests(
+            app.config["OFFICE_TIMEZONE"], session["manager_email"]
+        )
 
     @app.post("/api/manager/requests/<int:request_id>/decision")
     @manager_required
@@ -290,22 +312,26 @@ def create_app(test_config=None):
         body = request.get_json(silent=True) or {}
         if not isinstance(body, dict):
             body = {}
-        employee_id = body.get("employeeId")
+        employee_email = body.get("email")
         password = body.get("password")
         if (
-            not isinstance(employee_id, str)
+            not isinstance(employee_email, str)
             or not isinstance(password, str)
-            or not employee_id.strip()
             or not password
         ):
-            return jsonify(error="Enter your employee ID and password."), 400
+            return jsonify(error="Enter your employee email and password."), 400
+        try:
+            employee_email = normalize_email(employee_email)
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
 
         session.clear()
         cursor = db.get_connection().cursor()
         try:
             cursor.execute(
-                "SELECT employee_id, password_hash, active FROM employees WHERE employee_id = %s",
-                (employee_id.strip(),),
+                """SELECT employee_id, email, password_hash, active
+                   FROM employees WHERE email = %s""",
+                (employee_email,),
             )
             employee = cursor.fetchone()
         finally:
@@ -315,11 +341,12 @@ def create_app(test_config=None):
             password.encode("utf-8"), employee["password_hash"].encode("utf-8")
         )
         if not valid_password:
-            return jsonify(error="Employee ID or password is incorrect."), 401
+            return jsonify(error="Employee email or password is incorrect."), 401
 
         session.permanent = True
         session["employee_id"] = employee["employee_id"]
-        return jsonify(employeeId=employee["employee_id"])
+        session["employee_email"] = employee["email"]
+        return jsonify(employeeId=employee["employee_id"], employeeEmail=employee["email"])
 
     @app.post("/api/auth/logout")
     @login_required
