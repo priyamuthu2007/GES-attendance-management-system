@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#123c43">
+    <title>Attendance report · GES</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='attendance-report.js') }}" defer></script>
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="GES Smart Attendance home">
+          <span class="brand-mark">G</span>
+          <span>GES <span class="brand-light">ATTENDANCE</span></span>
+        </a>
+        <a class="text-button" href="/">Back to attendance</a>
+      </header>
+
+      <section class="content report-content">
+        <div class="eyebrow"><span class="live-dot"></span> STAFF ATTENDANCE</div>
+        <h1>Attendance report</h1>
+        <p class="intro">Recorded check-in and check-out times for active employees.</p>
+
+        <form id="report-form" class="report-filters card">
+          <label for="report-date">Attendance date</label>
+          <input id="report-date" name="date" type="date" required>
+          <button class="primary-button" type="submit">Show attendance</button>
+          <a id="csv-export" class="secondary-button report-export" href="#">Download CSV</a>
+        </form>
+
+        <p id="report-message" class="notice hidden" role="status" aria-live="polite"></p>
+        <div class="report-table-wrap card">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th scope="col">Employee ID</th>
+                <th scope="col">Name</th>
+                <th scope="col">Shift</th>
+                <th scope="col">Check-in</th>
+                <th scope="col">Check-out</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody id="report-rows">
+              <tr><td colspan="6">Loading attendance…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <footer>GES SMART ATTENDANCE <span>·</span> STAFF ATTENDANCE</footer>
+    </main>
+  </body>
+</html>

@@ -1,5 +1,10 @@
 # GES attendance add-ons
 
+> Legacy reference only: these modules, migrations, backup scripts, and setup
+> instructions target MySQL. The active app now uses PostgreSQL and does not
+> import or register this bundle. Do not run these migration or restore scripts
+> against the active app database.
+
 Four additions for the Flask + MySQL attendance app. Written against the README of the repo, not its source, so
 **one file (`attendance/schema_map.py`) holds every guess about your existing tables.** Fix that first.
 

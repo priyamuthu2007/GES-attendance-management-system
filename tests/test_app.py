@@ -3,13 +3,13 @@ from datetime import datetime, time, timezone
 from unittest.mock import patch
 
 from attendance import create_app
+from attendance.geofence import ATTENDANCE_RADIUS_METERS, MAX_GPS_ACCURACY_METERS
 
 
 class FakeCursor:
     def __init__(self, connection):
         self.connection = connection
         self.result = None
-        self.lastrowid = None
         self.rowcount = 0
 
     def __enter__(self):
@@ -21,6 +21,11 @@ class FakeCursor:
     def execute(self, query, params):
         if "FROM employees" in query:
             self.result = {"employee_id": "EMPLOYEE-1"}
+        elif "FROM employee_offices" in query:
+            self.rows = [
+                {"office_id": office_id}
+                for office_id in self.connection.assigned_office_ids
+            ]
         elif "FROM employee_shifts" in query:
             self.result = (
                 {
@@ -71,8 +76,8 @@ class FakeCursor:
                 "attendance_id": 1,
                 "employee_id": employee_id,
                 "attendance_date": attendance_date,
-                "shift_start": time.fromisoformat(shift_start),
-                "shift_end": time.fromisoformat(shift_end),
+                "shift_start": time.fromisoformat(shift_start) if shift_start else None,
+                "shift_end": time.fromisoformat(shift_end) if shift_end else None,
                 "check_in_at": check_in_at,
                 "check_in_latitude": latitude,
                 "check_in_longitude": longitude,
@@ -84,7 +89,7 @@ class FakeCursor:
                 "check_out_distance_meters": None,
                 "check_out_office_name": None,
             }
-            self.lastrowid = 1
+            self.result = {"attendance_id": 1}
             self.rowcount = 1
         elif query.startswith("UPDATE attendance"):
             (
@@ -117,14 +122,18 @@ class FakeCursor:
     def fetchone(self):
         return self.result
 
+    def fetchall(self):
+        return getattr(self, "rows", [])
+
     def close(self):
         return None
 
 
 class FakeConnection:
-    def __init__(self, record=None, has_shift=True):
+    def __init__(self, record=None, has_shift=True, assigned_office_ids=None):
         self.record = record
         self.has_shift = has_shift
+        self.assigned_office_ids = assigned_office_ids or ["test"]
 
     def cursor(self):
         return FakeCursor(self)
@@ -137,6 +146,11 @@ class FakeConnection:
 
 
 class AppTests(unittest.TestCase):
+    def test_database_name_defaults_to_ges(self):
+        with patch.dict("os.environ", {}, clear=True):
+            app = create_app({"TESTING": True, "SECRET_KEY": "test-only-secret"})
+        self.assertEqual(app.config["PG_DATABASE"], "ges")
+
     def setUp(self):
         self.app = create_app(
             {
@@ -156,8 +170,9 @@ class AppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"/static/styles.css", response.data)
         self.assertIn(b"/static/app.js", response.data)
-        self.assertIn(b"Assigned shift", response.data)
+        self.assertIn(b"Attendance access", response.data)
         self.assertIn(b'id="attendance-action"', response.data)
+        self.assertIn(b"10 m check-in radius", response.data)
         response.close()
 
     def test_home_assets_are_served_by_flask(self):
@@ -175,6 +190,21 @@ class AppTests(unittest.TestCase):
     def test_attendance_api_requires_employee_login(self):
         response = self.client.get("/api/attendance/today")
         self.assertEqual(response.status_code, 401)
+
+    def test_today_response_reports_server_geofence_limits(self):
+        with self.client.session_transaction() as browser_session:
+            browser_session["employee_id"] = "EMPLOYEE-1"
+        with patch("attendance.db.get_connection", return_value=FakeConnection()):
+            response = self.client.get("/api/attendance/today")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json["attendanceRadiusMeters"],
+            ATTENDANCE_RADIUS_METERS,
+        )
+        self.assertEqual(
+            response.json["maxGpsAccuracyMeters"],
+            MAX_GPS_ACCURACY_METERS,
+        )
 
     def test_state_changing_routes_require_csrf(self):
         self.app.config["WTF_CSRF_ENABLED"] = True
@@ -248,7 +278,7 @@ class AppTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 409)
 
-    def test_check_in_requires_a_shift_for_today(self):
+    def test_check_in_is_allowed_without_a_shift_on_any_day(self):
         with self.client.session_transaction() as browser_session:
             browser_session["employee_id"] = "EMPLOYEE-1"
         connection = FakeConnection(has_shift=False)
@@ -257,8 +287,34 @@ class AppTests(unittest.TestCase):
                 "/api/attendance/check-in",
                 json={"latitude": 0, "longitude": 0, "accuracyMeters": 5},
             )
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(connection.record["shift_start"])
+        self.assertIsNone(connection.record["shift_end"])
+
+    def test_check_in_requires_an_assigned_office(self):
+        with self.client.session_transaction() as browser_session:
+            browser_session["employee_id"] = "EMPLOYEE-1"
+        connection = FakeConnection(assigned_office_ids=["different-site"])
+        with patch("attendance.db.get_connection", return_value=connection):
+            response = self.client.post(
+                "/api/attendance/check-in",
+                json={"latitude": 0, "longitude": 0, "accuracyMeters": 5},
+            )
         self.assertEqual(response.status_code, 409)
-        self.assertIsNone(connection.record)
+
+    def test_check_in_rejects_another_registered_office(self):
+        self.app.config["OFFICES"].append(
+            {"id": "other", "name": "Other Office", "latitude": 10.0, "longitude": 10.0}
+        )
+        with self.client.session_transaction() as browser_session:
+            browser_session["employee_id"] = "EMPLOYEE-1"
+        connection = FakeConnection(assigned_office_ids=["test"])
+        with patch("attendance.db.get_connection", return_value=connection):
+            response = self.client.post(
+                "/api/attendance/check-in",
+                json={"latitude": 10.0, "longitude": 10.0, "accuracyMeters": 1},
+            )
+        self.assertEqual(response.status_code, 403)
 
 
 if __name__ == "__main__":

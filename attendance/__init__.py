@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import bcrypt
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, send_file, session
+from flask import Flask, jsonify, render_template, request, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFError, CSRFProtect, generate_csrf
@@ -23,6 +23,8 @@ limiter = Limiter(
     default_limits=[],
     storage_uri="memory://",
 )
+
+from .addon_features import audit_action, bp as addon_features_bp, current_role
 
 
 def load_offices():
@@ -81,15 +83,15 @@ def create_app(test_config=None):
         in {"true", "1", "yes"},
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
         MAX_CONTENT_LENGTH=10 * 1024,
-        WTF_CSRF_TIME_LIMIT=timedelta(hours=8),
+        WTF_CSRF_TIME_LIMIT=8 * 60 * 60,
         OFFICE_TIMEZONE=os.getenv("OFFICE_TIMEZONE", ""),
-        MYSQL_HOST=os.getenv("MYSQL_HOST", "127.0.0.1"),
-        MYSQL_PORT=int(os.getenv("MYSQL_PORT", "3306")),
-        MYSQL_DATABASE=os.getenv("MYSQL_DATABASE", "ges_attendance"),
-        MYSQL_USER=os.getenv("MYSQL_USER", ""),
-        MYSQL_PASSWORD=os.getenv("MYSQL_PASSWORD", ""),
-        MYSQL_MIGRATION_USER=os.getenv("MYSQL_MIGRATION_USER", ""),
-        MYSQL_MIGRATION_PASSWORD=os.getenv("MYSQL_MIGRATION_PASSWORD", ""),
+        PG_HOST=os.getenv("PG_HOST", "127.0.0.1"),
+        PG_PORT=int(os.getenv("PG_PORT", "5432")),
+        PG_DATABASE=os.getenv("PG_DATABASE", "ges"),
+        PG_USER=os.getenv("PG_USER", ""),
+        PG_PASSWORD=os.getenv("PG_PASSWORD", ""),
+        PG_MIGRATION_USER=os.getenv("PG_MIGRATION_USER", ""),
+        PG_MIGRATION_PASSWORD=os.getenv("PG_MIGRATION_PASSWORD", ""),
         OFFICES=load_offices() if os.getenv("OFFICE_LOCATIONS_JSON") else [],
         TESTING=False,
     )
@@ -106,8 +108,8 @@ def create_app(test_config=None):
     ):
         raise RuntimeError("FLASK_SECRET_KEY must contain at least 32 characters.")
     if not app.config["TESTING"]:
-        if not app.config["MYSQL_USER"] or not app.config["MYSQL_PASSWORD"]:
-            raise RuntimeError("Set MYSQL_USER and MYSQL_PASSWORD in .env.")
+        if not app.config["PG_USER"] or not app.config["PG_PASSWORD"]:
+            raise RuntimeError("Set PG_USER and PG_PASSWORD in .env.")
         try:
             ZoneInfo(app.config["OFFICE_TIMEZONE"])
         except ZoneInfoNotFoundError as error:
@@ -150,7 +152,10 @@ def create_app(test_config=None):
 
     @app.get("/")
     def index():
-        return send_file(ROOT.parent / "FRONTEND.html", max_age=0)
+        return render_template(
+            "index.html",
+            attendance_radius_meters=ATTENDANCE_RADIUS_METERS,
+        )
 
     @app.get("/api/health/live")
     def health_live():
@@ -159,7 +164,9 @@ def create_app(test_config=None):
     @app.get("/api/health/ready")
     def health_ready():
         try:
-            db.get_connection().ping(reconnect=False)
+            with db.get_connection().cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
             load_offices()
             ZoneInfo(app.config["OFFICE_TIMEZONE"])
         except Exception:
@@ -178,7 +185,7 @@ def create_app(test_config=None):
         cursor = db.get_connection().cursor()
         try:
             cursor.execute(
-                "SELECT employee_id FROM employees WHERE employee_id = %s AND active = 1",
+                "SELECT employee_id FROM employees WHERE employee_id = %s AND active = TRUE",
                 (employee_id,),
             )
             return cursor.fetchone()
@@ -232,11 +239,31 @@ def create_app(test_config=None):
         session.clear()
         session.permanent = True
         session["employee_id"] = employee["employee_id"]
+        role = current_role()
+        audit_action(
+            db.get_connection(),
+            employee["employee_id"],
+            role or "employee",
+            "login",
+            "employee",
+            employee["employee_id"],
+        )
+        db.get_connection().commit()
         return jsonify(employeeId=employee["employee_id"])
 
     @app.post("/api/auth/logout")
     @login_required
     def logout():
+        role = current_role()
+        audit_action(
+            db.get_connection(),
+            session["employee_id"],
+            role or "employee",
+            "logout",
+            "employee",
+            session["employee_id"],
+        )
+        db.get_connection().commit()
         session.clear()
         return jsonify(status="signed_out")
 
@@ -260,5 +287,7 @@ def create_app(test_config=None):
         from .attendance_routes import create_check_out
 
         return create_check_out(app.config, session["employee_id"])
+
+    app.register_blueprint(addon_features_bp)
 
     return app

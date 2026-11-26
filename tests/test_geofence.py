@@ -48,13 +48,37 @@ class GeofenceTests(unittest.TestCase):
         self.assertIsNone(office)
         self.assertEqual(error[1], 422)
 
+    def test_rejects_gps_accuracy_above_5_metres(self):
+        office, error = validate_location(
+            {"latitude": 0, "longitude": 0, "accuracyMeters": 6},
+            self.offices,
+        )
+        self.assertIsNone(office)
+        self.assertEqual(error[1], 422)
+
     def test_accounts_for_gps_uncertainty_at_geofence_edge(self):
         office, error = validate_location(
-            {"latitude": 0, "longitude": 0.0004, "accuracyMeters": 10},
+            {"latitude": 0, "longitude": 0.00005, "accuracyMeters": 5},
             self.offices,
         )
         self.assertIsNone(office)
         self.assertEqual(error[1], 403)
+
+    def test_rejects_location_when_distance_and_uncertainty_exceed_10_metres(self):
+        office, error = validate_location(
+            {"latitude": 0, "longitude": 0.00008, "accuracyMeters": 2},
+            self.offices,
+        )
+        self.assertIsNone(office)
+        self.assertEqual(error[1], 403)
+
+    def test_accepts_location_when_distance_and_uncertainty_fit_10_metres(self):
+        office, error = validate_location(
+            {"latitude": 0, "longitude": 0.00005, "accuracyMeters": 3},
+            self.offices,
+        )
+        self.assertIsNone(error)
+        self.assertEqual(office["id"], "test")
 
     def test_chooses_nearest_registered_office(self):
         result = nearest_office(10.001, 10, self.offices)

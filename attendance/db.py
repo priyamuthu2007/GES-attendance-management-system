@@ -1,43 +1,33 @@
 from pathlib import Path
 
-import pymysql
+import psycopg
 from flask import current_app, g
-from pymysql.cursors import DictCursor
+from psycopg.rows import dict_row
 
 
 def connect(config, migration=False):
-    use_migration_account = migration
-    username = (
-        config["MYSQL_MIGRATION_USER"] if use_migration_account else config["MYSQL_USER"]
-    )
-    password = (
-        config["MYSQL_MIGRATION_PASSWORD"]
-        if use_migration_account
-        else config["MYSQL_PASSWORD"]
-    )
-    return pymysql.connect(
-        host=config["MYSQL_HOST"],
-        port=config["MYSQL_PORT"],
+    username = config["PG_MIGRATION_USER"] if migration else config["PG_USER"]
+    password = config["PG_MIGRATION_PASSWORD"] if migration else config["PG_PASSWORD"]
+    return psycopg.connect(
+        host=config["PG_HOST"],
+        port=config["PG_PORT"],
         user=username,
         password=password,
-        database=config["MYSQL_DATABASE"],
-        charset="utf8mb4",
-        cursorclass=DictCursor,
+        dbname=config["PG_DATABASE"],
+        row_factory=dict_row,
         autocommit=False,
         connect_timeout=5,
-        read_timeout=10,
-        write_timeout=10,
     )
 
 
 def get_connection():
-    if "mysql_connection" not in g:
-        g.mysql_connection = connect(current_app.config)
-    return g.mysql_connection
+    if "postgres_connection" not in g:
+        g.postgres_connection = connect(current_app.config)
+    return g.postgres_connection
 
 
 def close_db(_error=None):
-    connection = g.pop("mysql_connection", None)
+    connection = g.pop("postgres_connection", None)
     if connection is not None:
         connection.close()
 

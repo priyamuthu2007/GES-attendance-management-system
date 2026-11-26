@@ -1,7 +1,7 @@
 import math
 
-ATTENDANCE_RADIUS_METERS = 50
-MAX_GPS_ACCURACY_METERS = 25
+ATTENDANCE_RADIUS_METERS = 10
+MAX_GPS_ACCURACY_METERS = 5
 EARTH_RADIUS_METERS = 6_371_000
 
 
@@ -75,7 +75,7 @@ def validate_location(payload, offices):
     if office["distanceMeters"] + accuracy > ATTENDANCE_RADIUS_METERS:
         return None, (
             {
-                "error": "Your GPS location and accuracy do not confirm that you are within 50 metres of an office.",
+                "error": "Your GPS location and accuracy do not confirm that you are within 10 metres of an office.",
                 "distanceMeters": round(office["distanceMeters"], 1),
                 "nearestOfficeName": office["name"],
             },

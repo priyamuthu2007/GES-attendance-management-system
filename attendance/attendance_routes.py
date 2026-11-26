@@ -1,7 +1,11 @@
 from flask import current_app, jsonify, request
 
 from . import db
-from .geofence import validate_location
+from .geofence import (
+    ATTENDANCE_RADIUS_METERS,
+    MAX_GPS_ACCURACY_METERS,
+    validate_location,
+)
 from .time_utils import local_now, local_time_string, time_string, utc_for_database
 
 
@@ -17,9 +21,18 @@ def get_shift(cursor, employee_id, day_of_week):
         return None
     return {
         "dayOfWeek": shift["day_of_week"],
-        "start": time_string(shift["shift_start"]),
-        "end": time_string(shift["shift_end"]),
+        "start": time_string(shift["shift_start"]) if shift["shift_start"] else None,
+        "end": time_string(shift["shift_end"]) if shift["shift_end"] else None,
     }
+
+
+def get_assigned_offices(cursor, employee_id, offices):
+    cursor.execute(
+        "SELECT office_id FROM employee_offices WHERE employee_id = %s",
+        (employee_id,),
+    )
+    assigned_ids = {row["office_id"] for row in cursor.fetchall()}
+    return [office for office in offices if office["id"] in assigned_ids]
 
 
 def attendance_to_json(record, time_zone):
@@ -38,8 +51,8 @@ def attendance_to_json(record, time_zone):
             else None
         ),
         "shift": {
-            "start": time_string(record["shift_start"]),
-            "end": time_string(record["shift_end"]),
+            "start": time_string(record["shift_start"]) if record["shift_start"] else None,
+            "end": time_string(record["shift_end"]) if record["shift_end"] else None,
         },
     }
 
@@ -49,6 +62,7 @@ def get_today_state(time_zone, offices):
     today = local_now(time_zone).date()
     connection = db.get_connection()
     with connection.cursor() as cursor:
+        assigned_offices = get_assigned_offices(cursor, employee_id, offices)
         shift = get_shift(cursor, employee_id, today.weekday())
         cursor.execute(
             """SELECT * FROM attendance
@@ -70,12 +84,16 @@ def get_today_state(time_zone, offices):
         "attendance": attendance_to_json(record, time_zone),
         "timeZone": time_zone,
         "offices": [
-            {"id": office["id"], "name": office["name"],
-             "latitude": office["latitude"], "longitude": office["longitude"]}
-            for office in offices
+            {
+                "id": office["id"],
+                "name": office["name"],
+                "latitude": office["latitude"],
+                "longitude": office["longitude"],
+            }
+            for office in assigned_offices
         ],
-        "attendanceRadiusMeters": 50,
-        "maxGpsAccuracyMeters": 25,
+        "attendanceRadiusMeters": ATTENDANCE_RADIUS_METERS,
+        "maxGpsAccuracyMeters": MAX_GPS_ACCURACY_METERS,
     }
 
 
@@ -89,16 +107,22 @@ def create_check_in(config, employee_id):
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         payload = {}
-    office, error = validate_location(payload, config["OFFICES"])
-    if error:
-        return jsonify(error[0]), error[1]
-
-    now = local_now(config["OFFICE_TIMEZONE"])
     connection = db.get_connection()
     try:
         with connection.cursor() as cursor:
+            offices = get_assigned_offices(cursor, employee_id, config["OFFICES"])
+        if not offices:
+            connection.rollback()
+            return jsonify(error="No office is assigned to this employee. Contact your administrator."), 409
+        office, error = validate_location(payload, offices)
+        if error:
+            connection.rollback()
+            return jsonify(error[0]), error[1]
+
+        now = local_now(config["OFFICE_TIMEZONE"])
+        with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT employee_id FROM employees WHERE employee_id = %s AND active = 1 FOR UPDATE",
+                "SELECT employee_id FROM employees WHERE employee_id = %s AND active = TRUE FOR UPDATE",
                 (employee_id,),
             )
             if not cursor.fetchone():
@@ -125,21 +149,19 @@ def create_check_in(config, employee_id):
                 return jsonify(error="Attendance is already complete for today."), 409
 
             shift = get_shift(cursor, employee_id, now.weekday())
-            if not shift:
-                connection.rollback()
-                return jsonify(error="No shift is assigned for today. Contact your administrator."), 409
 
             cursor.execute(
                 """INSERT INTO attendance
                    (employee_id, attendance_date, shift_start, shift_end, check_in_at,
                     check_in_latitude, check_in_longitude, check_in_accuracy_meters,
                     check_in_distance_meters, check_in_office_id, check_in_office_name)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   RETURNING attendance_id""",
                 (
                     employee_id,
                     now.date(),
-                    shift["start"],
-                    shift["end"],
+                    shift["start"] if shift else None,
+                    shift["end"] if shift else None,
                     utc_for_database(now),
                     payload["latitude"],
                     payload["longitude"],
@@ -149,7 +171,7 @@ def create_check_in(config, employee_id):
                     office["name"],
                 ),
             )
-            attendance_id = cursor.lastrowid
+            attendance_id = cursor.fetchone()["attendance_id"]
             connection.commit()
             cursor.execute("SELECT * FROM attendance WHERE attendance_id = %s", (attendance_id,))
             record = cursor.fetchone()
@@ -167,16 +189,22 @@ def create_check_out(config, employee_id):
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         payload = {}
-    office, error = validate_location(payload, config["OFFICES"])
-    if error:
-        return jsonify(error[0]), error[1]
-
     connection = db.get_connection()
-    now = local_now(config["OFFICE_TIMEZONE"])
     try:
         with connection.cursor() as cursor:
+            offices = get_assigned_offices(cursor, employee_id, config["OFFICES"])
+        if not offices:
+            connection.rollback()
+            return jsonify(error="No office is assigned to this employee. Contact your administrator."), 409
+        office, error = validate_location(payload, offices)
+        if error:
+            connection.rollback()
+            return jsonify(error[0]), error[1]
+
+        now = local_now(config["OFFICE_TIMEZONE"])
+        with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT employee_id FROM employees WHERE employee_id = %s AND active = 1 FOR UPDATE",
+                "SELECT employee_id FROM employees WHERE employee_id = %s AND active = TRUE FOR UPDATE",
                 (employee_id,),
             )
             if not cursor.fetchone():

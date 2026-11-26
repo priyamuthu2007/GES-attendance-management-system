@@ -10,14 +10,14 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 $appRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $envFile = Join-Path $appRoot ".env"
 if (-not (Test-Path $envFile)) {
-    throw "Copy .env.example to .env and configure MySQL credentials and FLASK_SECRET_KEY first."
+    throw "Copy .env.example to .env and configure PostgreSQL credentials and FLASK_SECRET_KEY first."
 }
 $envText = Get-Content $envFile -Raw
 foreach ($key in @(
-    "MYSQL_USER",
-    "MYSQL_PASSWORD",
-    "MYSQL_MIGRATION_USER",
-    "MYSQL_MIGRATION_PASSWORD",
+    "PG_USER",
+    "PG_PASSWORD",
+    "PG_MIGRATION_USER",
+    "PG_MIGRATION_PASSWORD",
     "FLASK_SECRET_KEY"
 )) {
     if ($envText -notmatch "(?m)^$key=\S.+$") {
@@ -28,21 +28,18 @@ if ($envText -notmatch "(?m)^HOST=127\.0\.0\.1\s*$") {
     throw "Set HOST=127.0.0.1; the app must remain bound to loopback behind the private VPN."
 }
 
-$mysqlService = Get-Service -Name "MySQL*" -ErrorAction SilentlyContinue |
+$postgresService = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue |
+    Sort-Object Name -Descending |
     Select-Object -First 1
-if (-not $mysqlService) {
-    $mysqlService = Get-Service -Name "MariaDB*" -ErrorAction SilentlyContinue |
-        Select-Object -First 1
+if (-not $postgresService) {
+    throw "A PostgreSQL Windows service was not found. Install and configure PostgreSQL first."
 }
-if (-not $mysqlService) {
-    throw "A MySQL or MariaDB Windows service was not found. Install and configure MySQL Community Server first."
+if ($postgresService.StartType -ne "Automatic") {
+    Set-Service -Name $postgresService.Name -StartupType Automatic
 }
-if ($mysqlService.StartType -ne "Automatic") {
-    Set-Service -Name $mysqlService.Name -StartupType Automatic
-}
-if ($mysqlService.Status -ne "Running") {
-    Start-Service -Name $mysqlService.Name
-    (Get-Service -Name $mysqlService.Name).WaitForStatus(
+if ($postgresService.Status -ne "Running") {
+    Start-Service -Name $postgresService.Name
+    (Get-Service -Name $postgresService.Name).WaitForStatus(
         [System.ServiceProcess.ServiceControllerStatus]::Running,
         [TimeSpan]::FromSeconds(60)
     )
@@ -85,7 +82,7 @@ try {
     & $venvPython "-m" "unittest" "discover" "-s" "tests" "-v"
     if ($LASTEXITCODE -ne 0) { throw "Tests failed; the host was not installed." }
     & $venvPython "manage.py" "init-db"
-    if ($LASTEXITCODE -ne 0) { throw "MySQL schema setup failed; the host was not installed." }
+    if ($LASTEXITCODE -ne 0) { throw "PostgreSQL schema setup failed; the host was not installed." }
 } finally {
     Pop-Location
 }

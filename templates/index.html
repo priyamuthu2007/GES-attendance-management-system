@@ -15,6 +15,7 @@
           <span class="brand-mark">G</span>
           <span>GES <span class="brand-light">ATTENDANCE</span></span>
         </a>
+        <a id="attendance-report-link" class="text-button hidden" href="/attendance-report">Attendance report</a>
         <button id="sign-out" class="text-button hidden" type="button">Sign out</button>
       </header>
 
@@ -48,7 +49,7 @@
             </div>
             <div class="workflow-step">
               <span class="step-number">2</span>
-              <div><strong>Assigned shift</strong><p id="shift-info">Loading today’s shift…</p></div>
+              <div><strong>Attendance access</strong><p id="shift-info">Check in any day at your assigned office, regardless of shift hours.</p></div>
             </div>
             <div class="workflow-step">
               <span class="step-number">3</span>
@@ -66,7 +67,7 @@
           </div>
           <p class="office-note">
             <span class="pin">●</span>
-            <span>Registered offices: <strong id="office-list"></strong> · 50 m check-in radius</span>
+            <span>Registered offices: <strong id="office-list"></strong> · {{ attendance_radius_meters }} m check-in radius</span>
           </p>
           <button id="refresh-location" class="secondary-button" type="button">Refresh location</button>
 
@@ -75,7 +76,10 @@
         </section>
 
         <p id="notice" class="notice hidden" role="status"></p>
-        <p class="privacy-note">Your GPS coordinates are recorded only when you check in or check out.</p>
+        <p class="privacy-note">
+          Your GPS coordinates are recorded only when you check in or check out.
+          <a href="/location-notice">Read the location data notice.</a>
+        </p>
       </section>
       <footer>GES SMART ATTENDANCE <span>·</span> LOCATION-VERIFIED CHECK-IN</footer>
     </main>

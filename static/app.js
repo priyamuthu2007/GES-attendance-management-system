@@ -1,10 +1,15 @@
+const ATTENDANCE_RADIUS_METERS = 10;
+const MAX_GPS_ACCURACY_METERS = 5;
+const TARGET_GPS_ACCURACY_METERS = 5;
+const LOCATION_SAMPLE_WINDOW_MS = 30000;
+
 const state = {
   csrfToken: "",
   employeeId: "",
+  employeeRole: "",
   timeZone: "Asia/Kolkata",
   offices: [],
   attendance: null,
-  shift: null,
   position: null,
   busy: false,
 };
@@ -13,6 +18,7 @@ const elements = {
   loginForm: document.querySelector("#login-form"),
   loginButton: document.querySelector("#login-button"),
   attendancePanel: document.querySelector("#attendance-panel"),
+  attendanceReportLink: document.querySelector("#attendance-report-link"),
   signOut: document.querySelector("#sign-out"),
   pageTitle: document.querySelector("#page-title"),
   pageIntro: document.querySelector("#page-intro"),
@@ -79,12 +85,13 @@ function clearNotice() {
 
 function showLogin() {
   state.employeeId = "";
+  state.employeeRole = "";
   state.attendance = null;
-  state.shift = null;
   state.position = null;
   elements.loginForm.classList.remove("hidden");
   elements.attendancePanel.classList.add("hidden");
   elements.signOut.classList.add("hidden");
+  elements.attendanceReportLink.classList.add("hidden");
   elements.pageTitle.textContent = "Welcome back.";
   elements.pageIntro.textContent = "Sign in with your employee account to continue.";
 }
@@ -94,8 +101,12 @@ function showAttendancePage(employeeId) {
   elements.loginForm.classList.add("hidden");
   elements.attendancePanel.classList.remove("hidden");
   elements.signOut.classList.remove("hidden");
+  elements.attendanceReportLink.classList.toggle(
+    "hidden",
+    !["admin", "hr", "auditor"].includes(state.employeeRole),
+  );
   elements.pageTitle.textContent = "Good to see you.";
-  elements.pageIntro.textContent = "Confirm your shift and location to record attendance.";
+  elements.pageIntro.textContent = "Check in at your assigned office any day.";
   elements.signedInEmployee.textContent = employeeId;
   elements.avatar.textContent = employeeId.charAt(0).toUpperCase();
 }
@@ -119,8 +130,8 @@ function withinRange(position) {
   const nearest = nearestOffice(position);
   return Boolean(
     nearest &&
-      position.accuracy <= 25 &&
-      nearest.distanceMeters + position.accuracy <= 50,
+      position.accuracy <= MAX_GPS_ACCURACY_METERS &&
+      nearest.distanceMeters + position.accuracy <= ATTENDANCE_RADIUS_METERS,
   );
 }
 
@@ -143,7 +154,7 @@ function updateLocationPanel() {
   elements.locationDetail.textContent =
     `${Math.round(nearest.distanceMeters)} m from ${nearest.name} · GPS accuracy ±${Math.round(state.position.accuracy)} m`;
 
-  if (state.position.accuracy > 25) {
+  if (state.position.accuracy > MAX_GPS_ACCURACY_METERS) {
     elements.locationHeading.textContent = "GPS accuracy is too low";
     elements.rangeBadge.textContent = "LOW ACCURACY";
     elements.rangeBadge.className = "range-badge bad";
@@ -199,32 +210,100 @@ async function getCurrentLocation() {
     throw new Error("This browser does not support GPS location.");
   }
   return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) =>
-        resolve({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          accuracy: coords.accuracy,
-        }),
-      (error) => {
-        const message =
-          error.code === 1
-            ? "Location permission was denied. Allow access in browser settings and try again."
-            : error.code === 3
-              ? "GPS location timed out. Move near a window and try again."
-              : "Could not determine your location. Check device location services and try again.";
-        reject(new Error(message));
-      },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
-    );
+    let bestPosition = null;
+    let lastError = null;
+    let watchId = null;
+    let settled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (bestPosition) {
+        finish(resolve, bestPosition);
+      } else {
+        finish(
+          reject,
+          new Error(
+            lastError
+              ? locationErrorMessage(lastError)
+              : "GPS location timed out. Move near a window and try again.",
+          ),
+        );
+      }
+    }, LOCATION_SAMPLE_WINDOW_MS);
+
+    function finish(callback, value) {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      callback(value);
+    }
+
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        ({ coords }) => {
+          const position = {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            accuracy: coords.accuracy,
+          };
+          if (
+            !Number.isFinite(position.latitude) ||
+            !Number.isFinite(position.longitude) ||
+            !Number.isFinite(position.accuracy) ||
+            position.accuracy < 0
+          ) {
+            return;
+          }
+          if (!bestPosition || position.accuracy < bestPosition.accuracy) {
+            bestPosition = position;
+          }
+          if (bestPosition.accuracy <= TARGET_GPS_ACCURACY_METERS) {
+            finish(resolve, bestPosition);
+          }
+        },
+        (error) => {
+          if (error.code === 1) {
+            finish(
+              reject,
+              new Error(
+                "Location permission was denied. Allow access in browser settings and try again.",
+              ),
+            );
+          } else {
+            lastError = error;
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: LOCATION_SAMPLE_WINDOW_MS + 1000,
+          maximumAge: 0,
+        },
+      );
+    } catch (error) {
+      finish(
+        reject,
+        new Error(
+          error.message || "Could not determine your location. Check device location services and try again.",
+        ),
+      );
+    }
   });
+}
+
+function locationErrorMessage(error) {
+  if (error.code === 1) {
+    return "Location permission was denied. Allow access in browser settings and try again.";
+  }
+  if (error.code === 3) {
+    return "GPS location timed out. Move near a window and try again.";
+  }
+  return "Could not determine your location. Check device location services and try again.";
 }
 
 async function refreshLocation() {
   state.position = null;
   updateLocationPanel();
   renderAttendance();
-  showNotice("Requesting a fresh GPS location. Allow location access in your browser.");
+  showNotice("Collecting fresh GPS readings for up to 30 seconds. Move near a window for best accuracy.");
   try {
     state.position = await getCurrentLocation();
     updateLocationPanel();
@@ -239,16 +318,17 @@ async function refreshLocation() {
 }
 
 async function loadAttendance() {
+  const employee = await api("/api/auth/session");
+  state.employeeRole = employee.role;
   const result = await api("/api/attendance/today");
   state.employeeId = result.employeeId;
   state.timeZone = result.timeZone;
-  state.shift = result.shift;
   state.attendance = result.attendance;
   state.offices = result.offices;
-  elements.shiftInfo.textContent = state.shift
-    ? `${state.shift.start} – ${state.shift.end}`
-    : "No shift assigned today. Contact your administrator.";
-  elements.officeList.textContent = state.offices.map((office) => office.name).join(" or ");
+  elements.shiftInfo.textContent = "Check in any day at your assigned office, regardless of shift hours.";
+  elements.officeList.textContent = state.offices.length
+    ? state.offices.map((office) => office.name).join(" or ")
+    : "No office assigned. Contact your administrator.";
   showAttendancePage(result.employeeId);
   renderAttendance();
 }
@@ -283,16 +363,16 @@ async function submitAttendance() {
   state.busy = true;
   renderAttendance();
   clearNotice();
-  showNotice("Verifying a fresh GPS location…");
+  showNotice("Collecting fresh GPS readings for up to 30 seconds…");
   try {
     const position = await getCurrentLocation();
     state.position = position;
     updateLocationPanel();
-    if (position.accuracy > 25) {
+    if (position.accuracy > MAX_GPS_ACCURACY_METERS) {
       throw new Error("GPS accuracy is too low to verify attendance. Refresh your location and try again.");
     }
     if (!withinRange(position)) {
-      throw new Error("Your location is outside the confirmed 50 metre attendance area.");
+      throw new Error(`Your location is outside the confirmed ${ATTENDANCE_RADIUS_METERS} metre attendance area.`);
     }
     const action = elements.attendanceAction.dataset.action;
     const result = await api(`/api/attendance/${action}`, {

@@ -10,4 +10,4 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 $taskName = "GES Smart Attendance Host"
 Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-Write-Host "Removed the app startup task. MySQL and attendance data were not deleted."
+Write-Host "Removed the app startup task. PostgreSQL and attendance data were not deleted."
