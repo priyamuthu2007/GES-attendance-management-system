@@ -9,6 +9,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, input { font: inherit; }
+textarea { font: inherit; }
 button { cursor: pointer; }
 .hidden { display: none !important; }
 .page-shell { min-height: 100vh; display: flex; flex-direction: column; }
@@ -66,6 +67,28 @@ h2 { margin: 0; color: #17383d; font-size: 19px; }
 .notice.error { color: #914b38; background: #fff0e9; }
 .notice.info { color: #456b69; background: #edf4f2; }
 .privacy-note { margin: 18px 0; text-align: center; color: #8a9b97; font-size: 11px; line-height: 1.6; }
+.manager-link { margin: 18px 0; text-align: center; font-size: 12px; }
+.manager-link a { color: #317b6a; }
+.exception-panel { margin-top: 21px; padding: 17px; border: 1px solid #e8eee9; border-radius: 10px; background: #fbfcfb; }
+.exception-panel h2 { font-size: 15px; }
+.exception-panel > p { margin: 7px 0 12px; color: #7a8e8a; font-size: 11px; line-height: 1.5; }
+.exception-panel label, .request-card label { display: block; color: #345b59; font-size: 11px; font-weight: 700; }
+.exception-panel textarea, .request-card textarea { width: 100%; min-height: 75px; margin-top: 7px; padding: 10px; resize: vertical; border: 1px solid #dce7e2; border-radius: 8px; color: #17383d; background: #fff; }
+.exception-panel textarea:disabled { background: #f3f6f4; }
+.exception-panel .secondary-button { margin-top: 10px; }
+.exception-status { margin: 8px 0 0 !important; color: #317b6a !important; font-weight: 700; }
+.manager-content { width: min(100% - 40px, 760px); }
+.manager-toolbar { margin: 18px 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.manager-toolbar .secondary-button { width: auto; min-width: 150px; padding: 0 15px; }
+.request-list { display: grid; gap: 14px; }
+.request-card { padding: 18px; }
+.request-card h3 { margin: 0; color: #17383d; font-size: 15px; }
+.request-meta { color: #788c88; font-size: 11px; line-height: 1.5; }
+.request-reason { white-space: pre-wrap; color: #355a56; font-size: 13px; line-height: 1.55; }
+.request-actions { display: flex; gap: 10px; margin-top: 12px; }
+.request-actions button { width: auto; min-height: 40px; margin-top: 0; padding: 0 13px; flex: 1; }
+.request-actions .secondary-button { width: auto; }
+.empty-state { padding: 24px; text-align: center; color: #788c88; background: #fff; border: 1px solid #e4ece8; border-radius: 12px; }
 footer { padding: 20px; color: #8ca09c; font-size: 9px; font-weight: 700; letter-spacing: .13em; text-align: center; }
 footer span { padding: 0 6px; color: #3b927b; }
 @media (max-width: 480px) { .content { margin-top: 46px; } .attendance-card, .login-card { padding: 19px; } .location-panel { flex-wrap: wrap; } .range-badge { margin-left: 46px; } }

@@ -25,8 +25,8 @@
         <p id="page-intro" class="intro">Sign in with your employee account to continue.</p>
 
         <form id="login-form" class="card login-card">
-          <label for="employee-id">Employee ID</label>
-          <input id="employee-id" name="employeeId" autocomplete="username" maxlength="64" required>
+          <label for="employee-email">Email address</label>
+          <input id="employee-email" name="email" type="email" autocomplete="username" maxlength="254" required>
           <label for="password">Password</label>
           <input id="password" name="password" type="password" autocomplete="current-password" required>
           <button id="login-button" class="primary-button" type="submit">Sign in</button>
@@ -73,6 +73,16 @@
 
           <div id="attendance-status" class="attendance-status hidden"></div>
           <button id="attendance-action" class="primary-button" type="button" disabled>Get location</button>
+
+          <section class="exception-panel" aria-labelledby="exception-title">
+            <h2 id="exception-title">GPS not working?</h2>
+            <p>Request a manager review. If approved, attendance is recorded at the request time without GPS verification.</p>
+            <label for="exception-reason">Reason for your request</label>
+            <textarea id="exception-reason" minlength="10" maxlength="500" required></textarea>
+            <button id="exception-submit" class="secondary-button" type="button">Request manual review</button>
+            <p id="exception-status" class="exception-status hidden" role="status"></p>
+          </section>
+          <button id="refresh-attendance" class="text-button" type="button">Refresh attendance status</button>
         </section>
 
         <p id="notice" class="notice hidden" role="status"></p>
@@ -80,6 +90,7 @@
           Your GPS coordinates are recorded only when you check in or check out.
           <a href="/location-notice">Read the location data notice.</a>
         </p>
+        <p class="manager-link"><a href="/manager">Manager review sign-in</a></p>
       </section>
       <footer>GES SMART ATTENDANCE <span>·</span> LOCATION-VERIFIED CHECK-IN</footer>
     </main>

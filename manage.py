@@ -1,4 +1,4 @@
-import argparse
+=import argparse
 import getpass
 import re
 import sys
@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from attendance import create_app
 from attendance.db import connect, get_connection, init_db
 from attendance.roster import read_employee_roster
+from attendance.identity import normalize_email
 
 
 DAY_NAMES = {
@@ -57,6 +58,7 @@ def parse_offices(value):
 def build_parser():
     parser = argparse.ArgumentParser(description="GES Smart Attendance administrator tools.")
     commands = parser.add_subparsers(dest="command", required=True)
+<<<<<<< HEAD
     commands.add_parser("init-db", help="Create the PostgreSQL tables.")
     employee = commands.add_parser("create-employee", help="Create an employee and assign shift days.")
     employee.add_argument("employee_id")
@@ -64,6 +66,15 @@ def build_parser():
     schedule = employee.add_mutually_exclusive_group()
     schedule.add_argument("--no-shift", action="store_true")
     schedule.add_argument("--flexible-shift", action="store_true")
+=======
+    commands.add_parser("init-db", help="Create the MySQL tables.")
+    manager = commands.add_parser("create-manager", help="Create a manager account.")
+    manager.add_argument("manager_id")
+    manager.add_argument("--email", required=True)
+    employee = commands.add_parser("create-employee", help="Create an employee and assign shift days.")
+    employee.add_argument("employee_id")
+    employee.add_argument("--email", required=True)
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
     employee.add_argument("--days", type=parse_days, default=parse_days("mon,tue,wed,thu,fri"))
     employee.add_argument("--shift-start", type=parse_time, default="09:00")
     employee.add_argument("--shift-end", type=parse_time, default="17:00")
@@ -81,6 +92,7 @@ def build_parser():
     shift.add_argument("--days", type=parse_days, required=True)
     shift.add_argument("--shift-start", type=parse_time, required=True)
     shift.add_argument("--shift-end", type=parse_time, required=True)
+<<<<<<< HEAD
     role = commands.add_parser("set-role", help="Set an employee's add-on access role.")
     role.add_argument("employee_id")
     role.add_argument("role", choices=("admin", "manager", "hr", "auditor", "employee"))
@@ -106,6 +118,22 @@ def create_employee(
     if unknown_offices:
         raise ValueError(f"Unknown office IDs: {', '.join(sorted(unknown_offices))}.")
     if not no_shift and not flexible_shift and shift_start == shift_end:
+=======
+    employee_email = commands.add_parser("set-employee-email", help="Set an employee's login email.")
+    employee_email.add_argument("employee_id")
+    employee_email.add_argument("--email", required=True)
+    manager_email = commands.add_parser("set-manager-email", help="Set a manager's login email.")
+    manager_email.add_argument("manager_id")
+    manager_email.add_argument("--email", required=True)
+    return parser
+
+
+def create_employee(employee_id, email, days, shift_start, shift_end):
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", employee_id):
+        raise ValueError("Employee ID may contain letters, numbers, dot, underscore, or hyphen.")
+    email = normalize_email(email)
+    if shift_start == shift_end:
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
         raise ValueError("Shift start and end cannot be the same time.")
     password = getpass.getpass("New employee password (12+ characters): ")
     confirmation = getpass.getpass("Confirm password: ")
@@ -121,8 +149,8 @@ def create_employee(
     try:
         with connection.cursor() as cursor:
             cursor.execute(
-                "INSERT INTO employees (employee_id, password_hash) VALUES (%s, %s)",
-                (employee_id, password_hash),
+                "INSERT INTO employees (employee_id, email, password_hash) VALUES (%s, %s, %s)",
+                (employee_id, email, password_hash),
             )
             for office_id in sites:
                 cursor.execute(
@@ -298,6 +326,58 @@ def import_roster(workbook, offices, preview=False):
     print(f"Roster import complete: {created} created, {updated} existing accounts updated.")
 
 
+def create_manager(manager_id, email):
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", manager_id):
+        raise ValueError("Manager ID may contain letters, numbers, dot, underscore, or hyphen.")
+    email = normalize_email(email)
+    password = getpass.getpass("New manager password (12+ characters): ")
+    confirmation = getpass.getpass("Confirm password: ")
+    if len(password) < 12:
+        raise ValueError("Password must contain at least 12 characters.")
+    if len(password.encode("utf-8")) > 72:
+        raise ValueError("Password must not exceed 72 UTF-8 bytes.")
+    if password != confirmation:
+        raise ValueError("Passwords do not match.")
+
+    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO managers (manager_id, email, password_hash) VALUES (%s, %s, %s)",
+                (manager_id, email, password_hash),
+            )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    print(f"Manager {manager_id} created.")
+
+
+def set_login_email(table, id_column, account_id, email):
+    if table not in {"employees", "managers"} or id_column not in {"employee_id", "manager_id"}:
+        raise ValueError("Invalid account type.")
+    email = normalize_email(email)
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT {id_column} FROM {table} WHERE {id_column} = %s",
+                (account_id,),
+            )
+            if not cursor.fetchone():
+                raise ValueError(f"Account {account_id} was not found.")
+            cursor.execute(
+                f"UPDATE {table} SET email = %s WHERE {id_column} = %s",
+                (email, account_id),
+            )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    print(f"Login email updated for {account_id}.")
+
+
 def set_shift(employee_id, days, shift_start, shift_end):
     if shift_start == shift_end:
         raise ValueError("Shift start and end cannot be the same time.")
@@ -371,6 +451,7 @@ def main(argv=None):
                 connection.close()
         elif args.command == "create-employee":
             create_employee(
+<<<<<<< HEAD
                 args.employee_id,
                 args.days,
                 args.shift_start,
@@ -388,6 +469,18 @@ def main(argv=None):
             set_shift(args.employee_id, args.days, args.shift_start, args.shift_end)
         elif args.command == "set-role":
             set_role(args.employee_id, args.role)
+=======
+                args.employee_id, args.email, args.days, args.shift_start, args.shift_end
+            )
+        elif args.command == "create-manager":
+            create_manager(args.manager_id, args.email)
+        elif args.command == "set-shift":
+            set_shift(args.employee_id, args.days, args.shift_start, args.shift_end)
+        elif args.command == "set-employee-email":
+            set_login_email("employees", "employee_id", args.employee_id, args.email)
+        elif args.command == "set-manager-email":
+            set_login_email("managers", "manager_id", args.manager_id, args.email)
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
     return 0
 
 

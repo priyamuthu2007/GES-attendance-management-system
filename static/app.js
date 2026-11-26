@@ -10,6 +10,12 @@ const state = {
   timeZone: "Asia/Kolkata",
   offices: [],
   attendance: null,
+  employeeEmail: "",
+  timeZone: "Asia/Kolkata",
+  offices: [],
+  attendance: null,
+  exceptionRequest: null,
+  shift: null,
   position: null,
   busy: false,
 };
@@ -22,7 +28,7 @@ const elements = {
   signOut: document.querySelector("#sign-out"),
   pageTitle: document.querySelector("#page-title"),
   pageIntro: document.querySelector("#page-intro"),
-  employeeId: document.querySelector("#employee-id"),
+  email: document.querySelector("#employee-email"),
   password: document.querySelector("#password"),
   signedInEmployee: document.querySelector("#signed-in-employee"),
   avatar: document.querySelector("#avatar"),
@@ -36,6 +42,10 @@ const elements = {
   refreshLocation: document.querySelector("#refresh-location"),
   attendanceStatus: document.querySelector("#attendance-status"),
   attendanceAction: document.querySelector("#attendance-action"),
+  exceptionReason: document.querySelector("#exception-reason"),
+  exceptionSubmit: document.querySelector("#exception-submit"),
+  exceptionStatus: document.querySelector("#exception-status"),
+  refreshAttendance: document.querySelector("#refresh-attendance"),
   notice: document.querySelector("#notice"),
 };
 
@@ -85,8 +95,15 @@ function clearNotice() {
 
 function showLogin() {
   state.employeeId = "";
+<<<<<<< HEAD
   state.employeeRole = "";
   state.attendance = null;
+=======
+  state.employeeEmail = "";
+  state.attendance = null;
+  state.exceptionRequest = null;
+  state.shift = null;
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
   state.position = null;
   elements.loginForm.classList.remove("hidden");
   elements.attendancePanel.classList.add("hidden");
@@ -96,8 +113,8 @@ function showLogin() {
   elements.pageIntro.textContent = "Sign in with your employee account to continue.";
 }
 
-function showAttendancePage(employeeId) {
-  state.employeeId = employeeId;
+function showAttendancePage(email) {
+  state.employeeEmail = email;
   elements.loginForm.classList.add("hidden");
   elements.attendancePanel.classList.remove("hidden");
   elements.signOut.classList.remove("hidden");
@@ -106,9 +123,15 @@ function showAttendancePage(employeeId) {
     !["admin", "hr", "auditor"].includes(state.employeeRole),
   );
   elements.pageTitle.textContent = "Good to see you.";
+<<<<<<< HEAD
   elements.pageIntro.textContent = "Check in at your assigned office any day.";
   elements.signedInEmployee.textContent = employeeId;
   elements.avatar.textContent = employeeId.charAt(0).toUpperCase();
+=======
+  elements.pageIntro.textContent = "Confirm your shift and location to record attendance.";
+  elements.signedInEmployee.textContent = email;
+  elements.avatar.textContent = email.charAt(0).toUpperCase();
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
 }
 
 function nearestOffice(position) {
@@ -176,11 +199,13 @@ function renderAttendance() {
   elements.attendanceStatus.classList.toggle("hidden", !attendance);
   if (attendance) {
     const checkInTime = formatTime(attendance.checkInAt);
+    const checkInSource =
+      attendance.checkInSource === "manual_approval" ? " · manually approved" : "";
     const checkoutLine = attendance.checkOutAt
-      ? `<br>Check-out: ${escapeHtml(formatTime(attendance.checkOutAt))} · ${escapeHtml(attendance.checkOutOffice)}`
+      ? `<br>Check-out: ${escapeHtml(formatTime(attendance.checkOutAt))} · ${escapeHtml(attendance.checkOutOffice)}${attendance.checkOutSource === "manual_approval" ? " · manually approved" : ""}`
       : "<br>Check-out has not been recorded.";
     elements.attendanceStatus.innerHTML =
-      `<strong>Check-in: ${escapeHtml(checkInTime)} · ${escapeHtml(attendance.checkInOffice)}</strong>${checkoutLine}`;
+      `<strong>Check-in: ${escapeHtml(checkInTime)} · ${escapeHtml(attendance.checkInOffice)}${checkInSource}</strong>${checkoutLine}`;
     if (checkedOut) {
       elements.attendanceAction.textContent = "Attendance completed for today";
     } else {
@@ -203,6 +228,25 @@ function renderAttendance() {
     hasOpenCheckIn ? "Mark check-out" : "Mark check-in",
   );
   elements.refreshLocation.disabled = state.busy;
+  renderExceptionRequest();
+}
+
+function renderExceptionRequest() {
+  const attendance = state.attendance;
+  const hasOpenCheckIn = Boolean(attendance && !attendance.checkOutAt);
+  const completed = Boolean(attendance?.checkOutAt);
+  const canRequest = Boolean(state.shift || hasOpenCheckIn);
+  const pending = Boolean(state.exceptionRequest);
+  elements.exceptionSubmit.disabled = state.busy || pending || completed || !canRequest;
+  elements.exceptionReason.disabled = state.busy || pending || completed || !canRequest;
+  elements.exceptionStatus.classList.toggle("hidden", !pending);
+  if (pending) {
+    elements.exceptionStatus.textContent =
+      `Pending manager review for ${state.exceptionRequest.action}. Your request has not yet changed attendance.`;
+  } else {
+    elements.exceptionStatus.textContent = "";
+  }
+  elements.refreshAttendance.disabled = state.busy;
 }
 
 async function getCurrentLocation() {
@@ -210,6 +254,7 @@ async function getCurrentLocation() {
     throw new Error("This browser does not support GPS location.");
   }
   return new Promise((resolve, reject) => {
+<<<<<<< HEAD
     let bestPosition = null;
     let lastError = null;
     let watchId = null;
@@ -286,6 +331,26 @@ async function getCurrentLocation() {
         ),
       );
     }
+=======
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) =>
+        resolve({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          accuracy: coords.accuracy,
+        }),
+      (error) => {
+        const message =
+          error.code === 1
+            ? "Location permission was denied. Allow access in browser settings and try again."
+            : error.code === 3
+              ? "GPS location timed out. Move near a window and try again."
+              : "Could not determine your location. Check device location services and try again.";
+        reject(new Error(message));
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
   });
 }
 
@@ -322,15 +387,56 @@ async function loadAttendance() {
   state.employeeRole = employee.role;
   const result = await api("/api/attendance/today");
   state.employeeId = result.employeeId;
+  state.employeeEmail = result.employeeEmail;
   state.timeZone = result.timeZone;
   state.attendance = result.attendance;
+  state.exceptionRequest = result.exceptionRequest;
   state.offices = result.offices;
+<<<<<<< HEAD
   elements.shiftInfo.textContent = "Check in any day at your assigned office, regardless of shift hours.";
   elements.officeList.textContent = state.offices.length
     ? state.offices.map((office) => office.name).join(" or ")
     : "No office assigned. Contact your administrator.";
   showAttendancePage(result.employeeId);
+=======
+  elements.shiftInfo.textContent = state.shift
+    ? `${state.shift.start} – ${state.shift.end}`
+    : "No shift assigned today. Contact your administrator.";
+  elements.officeList.textContent = state.offices.map((office) => office.name).join(" or ");
+  showAttendancePage(result.employeeEmail);
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
   renderAttendance();
+}
+
+async function submitExceptionRequest() {
+  if (state.busy) return;
+  state.busy = true;
+  renderAttendance();
+  clearNotice();
+  try {
+    const result = await api("/api/attendance/exception-requests", {
+      method: "POST",
+      body: JSON.stringify({ reason: elements.exceptionReason.value }),
+    });
+    state.exceptionRequest = result.request;
+    elements.exceptionReason.value = "";
+    renderAttendance();
+    showNotice(result.message, "success");
+  } catch (error) {
+    showNotice(error.message, "error");
+  } finally {
+    state.busy = false;
+    renderAttendance();
+  }
+}
+
+async function refreshAttendance() {
+  try {
+    await loadAttendance();
+    showNotice("Attendance status refreshed.", "success");
+  } catch (error) {
+    showNotice(error.message, "error");
+  }
 }
 
 async function signIn(event) {
@@ -342,14 +448,14 @@ async function signIn(event) {
     await api("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({
-        employeeId: elements.employeeId.value.trim(),
+        email: elements.email.value.trim(),
         password: elements.password.value,
       }),
     });
     elements.password.value = "";
     await renewCsrfToken();
     await loadAttendance();
-    await refreshLocation();
+    void refreshLocation();
   } catch (error) {
     showNotice(error.message, "error");
   } finally {
@@ -438,12 +544,14 @@ elements.loginForm.addEventListener("submit", signIn);
 elements.signOut.addEventListener("click", signOut);
 elements.refreshLocation.addEventListener("click", refreshLocation);
 elements.attendanceAction.addEventListener("click", submitAttendance);
+elements.exceptionSubmit.addEventListener("click", submitExceptionRequest);
+elements.refreshAttendance.addEventListener("click", refreshAttendance);
 
 async function initialize() {
   try {
     await renewCsrfToken();
     await loadAttendance();
-    if (!state.attendance?.checkOutAt) await refreshLocation();
+    if (!state.attendance?.checkOutAt) void refreshLocation();
   } catch (error) {
     if (!error.message.includes("Please sign in")) {
       showNotice(error.message, "error");

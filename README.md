@@ -6,18 +6,32 @@ The separate [`mobile/`](./mobile/) Flutter project implements offline-first att
 
 ## Attendance workflow
 
+<<<<<<< HEAD
 1. Employee signs in with an administrator-provisioned employee ID and password.
 2. The app loads the employee's assigned sites and attendance status.
+=======
+1. Employee signs in with their administrator-provisioned email address and password. Email addresses are trimmed, lowercased, and unique across employee accounts; internal employee IDs remain the stable attendance record key.
+2. The app fetches the employee's assigned shift for the office-local day.
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
 3. The browser requests fresh GPS permission and shows the nearest office and distance.
 4. The browser collects fresh GPS readings for up to 30 seconds, preferring a fix with 5 m accuracy. Check-in is accepted only if GPS accuracy is 5 m or better and the server-calculated nearest-office distance plus GPS-reported accuracy is no more than 10 m.
 5. The same fresh-location and server-side checks apply to check-out.
+<<<<<<< HEAD
 6. PostgreSQL stores the employee, office-local attendance date, UTC check-in/check-out timestamps, coordinates, GPS accuracy, distance, and office used. Database uniqueness prevents multiple daily records; a transaction locks the employee row to prevent concurrent open check-ins.
+=======
+6. MySQL stores the employee, office-local attendance date, UTC check-in/check-out timestamps, coordinates, GPS accuracy, distance, and office used. Database uniqueness prevents multiple daily records; a transaction locks the employee row to prevent concurrent open check-ins.
+7. If GPS is unavailable, an employee can submit an exception request with a reason. A separately authenticated manager can approve or reject it. Approval records attendance at the server-captured request time, marks it as manually approved, and records the manager, decision time, and note. Manual approval bypasses geofence verification and must only be used as a supervised pilot fallback.
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
 
 Employees can check in on any day and at any time, but only within one of their assigned site geofences. Shift hours are not an attendance restriction. An open check-in must be checked out before another check-in can be created.
 
 ## Local development
 
+<<<<<<< HEAD
 Requirements: Python 3.11+ and PostgreSQL. Flask serves the employee attendance interface from [`templates/index.html`](./templates/index.html), with its backend integration in [`static/app.js`](./static/app.js). The separate [`FRONTEND.html`](../FRONTEND.html) dashboard is not used by the Flask app.
+=======
+Requirements: Python 3.11+ and MySQL Community Server 8+.
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
 
 1. Start the PostgreSQL service and copy `.env.example` to `.env`. Set and verify the GPS coordinates for every registered site before deployment. The roster import expects the office IDs `anna-nagar`, `kpl`, `kpl-stp`, `nlc-m1a`, and `zirconium`. Never commit `.env`.
 2. Create a virtual environment and install dependencies:
@@ -27,18 +41,37 @@ Requirements: Python 3.11+ and PostgreSQL. Flask serves the employee attendance 
    .\.venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
 
+<<<<<<< HEAD
 3. Configure the local database, app account, migration account, and schema:
+=======
+4. For a local pilot, set `MYSQL_DATABASE=ges_attendance_pilot`, `MYSQL_USER=ges_staging_app`, and `MYSQL_MIGRATION_USER=ges_staging_migrator` in `.env`, with separate passwords. If those local MySQL accounts need to be synchronized to `.env`, run:
+
+   ```powershell
+   .\.venv\Scripts\python.exe scripts\sync-pilot-mysql-users.py
+   ```
+
+   The helper prompts for the local MySQL root password, creates the pilot database if needed, synchronizes the two pilot accounts, and applies their limited grants. It does not display or store passwords outside `.env`.
+
+5. Create tables:
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
 
    ```powershell
    .\.venv\Scripts\python.exe .\scripts\setup-local-database.py
    ```
 
+<<<<<<< HEAD
    The database defaults to `ges` (override with `PG_DATABASE` in `.env`). Enter the PostgreSQL administrator username and password when prompted. The password is read locally without being displayed or saved. The helper creates the new database and least-privilege accounts, generates fresh application credentials in the ignored `.env`, initializes the schema, and verifies the app connection. This does not migrate any MySQL records; create new employee accounts after setup. If the administrator password is unknown, ask the PostgreSQL administrator to run the setup; do not bypass database authentication. This local setup sets `SESSION_COOKIE_SECURE=false`; use HTTPS and set it to `true` for deployment.
 
 4. Provision an employee and assign at least one registered site:
 
    ```powershell
    .\.venv\Scripts\python.exe manage.py create-employee EMPLOYEE-001 --sites anna-nagar --days mon,tue,wed,thu,fri --shift-start 09:00 --shift-end 17:00
+=======
+6. Provision an employee with a unique email address and weekday shift (default weekdays 9 AM–5 PM):
+
+   ```powershell
+   .\.venv\Scripts\python.exe manage.py create-employee EMPLOYEE-001 --email employee@example.com --days mon,tue,wed,thu,fri --shift-start 09:00 --shift-end 17:00
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
    ```
 
    The password is requested twice without being displayed. Use `--flexible-shift` for a seven-day flexible schedule, or `--no-shift` when no shift should be recorded. Attendance is accepted any day at an assigned site regardless of the shift schedule.
@@ -49,15 +82,28 @@ Requirements: Python 3.11+ and PostgreSQL. Flask serves the employee attendance 
    .\.venv\Scripts\python.exe manage.py import-roster "C:\path\to\employee-roster.xlsx" --preview
    ```
 
+<<<<<<< HEAD
    Run the same command without `--preview` to import. The importer reads only the `ID` and `SITE` columns, ignores the workbook's password column, prompts securely for each new employee password, and updates site assignments for existing accounts without changing their passwords. KPL/KPL-STP employees receive flexible shift records for all seven days; other new employees have no fixed weekday shift recorded while their weekly off days are unknown. Existing non-KPL shifts are preserved. Check-in is allowed any day at an assigned site.
 
 5. Run a local development server:
+=======
+   Provision managers separately with unique email addresses; their credentials cannot be used to sign in as employees:
+
+   ```powershell
+   .\.venv\Scripts\python.exe manage.py create-manager MANAGER-001 --email manager@example.com
+   ```
+
+   Existing accounts can be assigned emails with `manage.py set-employee-email EMPLOYEE-001 --email employee@example.com` or `manage.py set-manager-email MANAGER-001 --email manager@example.com`. Managers review pending exceptions at `/manager`.
+
+7. Run a local development server:
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
 
    ```powershell
    $env:SESSION_COOKIE_SECURE = "false"
    .\.venv\Scripts\flask.exe --app wsgi:app run --host 127.0.0.1 --port 5001
    ```
 
+<<<<<<< HEAD
    Open `http://127.0.0.1:5001`. Browser geolocation works on localhost for development. For normal use, the HTTPS URL provided by the private VPN is required.
 
 ## Integrated missing-feature add-ons
@@ -79,13 +125,21 @@ The first command asks for an employee password without displaying it. The admin
 - `GET /location-notice` and `GET /health`
 
 The legacy utilities under `ges-additions/` target MySQL and are not compatible with this PostgreSQL app. Back up PostgreSQL with `pg_dump` and periodically verify recovery with `pg_restore`; the add-on's SQLite backup/restore code is also not exposed against the app database. The location notice is a draft and requires management approval before employee use.
+=======
+   Open `http://127.0.0.1:5000`. Browser geolocation works on localhost for development. For phones and normal use, the HTTPS URL provided by the private VPN is required.
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
 
 ## Self-host at the Anna Nagar office
 
 The Anna Nagar PC is the single app/PostgreSQL host. The Manapakkam PC and employee phones use a private VPN to reach the same app and database. Do not start a separate app or database at the second office.
 
+<<<<<<< HEAD
 1. Install Python 3.11+, PostgreSQL, and Tailscale on the Anna Nagar host. Keep PostgreSQL local-only; do not open port 5432 to the internet or office Wi-Fi. Set the PostgreSQL service to start automatically with Windows.
 2. Create the database and users as described above. Copy the project onto the host and configure its ignored `.env`. For the host-to-PostgreSQL local connection, use `PG_HOST=127.0.0.1`.
+=======
+1. Install Python 3.11+, MySQL 8+, and Tailscale on the Anna Nagar host. Keep MySQL local-only; do not open port 3306 to the internet or office Wi-Fi. Set MySQL to start automatically with Windows.
+2. Create the database/users above. Copy the project onto the host and configure its ignored `.env`. For the host-to-MySQL local connection, use `MYSQL_HOST=127.0.0.1`.
+>>>>>>> 834d82c7b6f03dad2b2020a1e4e4b56ad3503891
 3. Open PowerShell as Administrator in the project folder and install the app startup task:
 
    ```powershell
@@ -111,6 +165,7 @@ Private VPN plan terms may limit business use or device counts; confirm your org
 
 - Passwords use bcrypt; session cookies are HTTP-only, SameSite, and HTTPS-secure for the tailnet deployment. State-changing API calls use CSRF protection and login attempts are rate limited. The app's PostgreSQL account has only data access; schema changes require the separate migration account.
 - The server repeats all coordinate/radius checks; the browser is not trusted to authorize attendance.
+- Manual exception approvals are recorded separately from GPS-verified attendance but can still affect payroll. Restrict manager credentials, require documented reasons, and review the manager decision trail. Approval does not verify physical presence.
 - Browser GPS coordinates and accuracy can be spoofed, and indoor GPS may be poor. This is not proof of physical presence. If attendance has payroll/legal significance, add an onsite control (such as managed-device verification, a rotating office QR code, NFC, or supervised exception workflow).
 - The system stores employee coordinates and attendance times. Define notice, access controls, retention, backup, and deletion policies for employee data.
 - This PostgreSQL schema is for a new database. It does not import data from the previous MySQL database.
